@@ -5,18 +5,19 @@ import {
   HttpCode,
   Post,
   Query,
-  UnauthorizedException
+  UnauthorizedException,
 } from '@nestjs/common';
 
-import { ConfigService } from '@nestjs/config';
+import {
+  ConfigService,
+} from '@nestjs/config';
 
 import {
-  InvalidWebhookSignatureError,
-  WebhookSignatureValidator
+  WebhookSignatureValidator,
 } from 'mercadopago';
 
 import {
-  MercadoPagoService
+  MercadoPagoService,
 } from './mercadopago.service';
 
 
@@ -32,7 +33,7 @@ export class MercadoPagoController {
     private readonly configService:
       ConfigService,
 
-  ) { }
+  ) {}
 
 
   /* ================================= */
@@ -46,9 +47,13 @@ export class MercadoPagoController {
     @Body()
     body: {
 
+      id?: string;
+
       action?: string;
 
       type?: string;
+
+      status?: string;
 
       data?: {
         id?: string;
@@ -70,35 +75,13 @@ export class MercadoPagoController {
 
 
     @Query('type')
-    queryType?: string
+    queryType?: string,
 
   ) {
 
 
-    console.log(
-      '=============================='
-    );
-
-    console.log(
-      'WEBHOOK MERCADO PAGO:',
-      body
-    );
-
-    console.log(
-      'QUERY:',
-      {
-        dataId,
-        queryType
-      }
-    );
-
-    console.log(
-      '=============================='
-    );
-
-
     /* ================================= */
-    /* TIPO DE NOTIFICACIÓN              */
+    /* TIPO DE EVENTO                    */
     /* ================================= */
 
     const type =
@@ -106,166 +89,268 @@ export class MercadoPagoController {
       body.type;
 
 
+    /*
+     * Ignoramos cualquier evento
+     * que no nos interese.
+     */
+
     if (
-      type !== 'payment'
+      type !== 'payment' &&
+      type !== 'topic_merchant_order_wh' &&
+      type !== 'merchant_order'
     ) {
 
       return {
-        received: true
+        received: true,
       };
 
     }
 
 
     /* ================================= */
-    /* PAYMENT ID                        */
+    /* ID DEL RECURSO                    */
     /* ================================= */
 
-    const paymentId =
+    const resourceId =
       dataId ??
-      body.data?.id;
+      body.data?.id ??
+      body.id;
 
 
-    if (!paymentId) {
+    if (!resourceId) {
 
-      console.log(
-        'Webhook sin paymentId'
-      );
+    
+
 
       return {
-        received: true
+        received: true,
       };
 
     }
 
 
-    console.log(
-      'PAYMENT ID:',
-      paymentId
-    );
-
+ 
 
     /* ================================= */
-    /* SECRET                            */
+    /* PAYMENT                           */
     /* ================================= */
 
-    const secret =
-      this.configService.get<string>(
-        'MERCADOPAGO_WEBHOOK_SECRET'
-      )?.trim();
+    if (
+      type === 'payment'
+    ) {
 
 
-    console.log(
-      'DATOS VALIDACIÓN WEBHOOK:',
-      {
+      /*
+       * Los eventos payment
+       * sí requieren firma válida.
+       */
 
-        xSignature,
+      const secret =
+        this.configService.get<string>(
+          'MERCADOPAGO_WEBHOOK_SECRET',
+        )?.trim();
 
-        xRequestId,
 
-        dataId:
-          paymentId,
+      if (!secret) {
 
-        secretLoaded:
-          !!secret,
-
-        secretLength:
-          secret?.length
+        throw new Error(
+          'Falta MERCADOPAGO_WEBHOOK_SECRET',
+        );
 
       }
-    );
 
 
-    if (!secret) {
-      throw new Error(
-        'Falta MERCADOPAGO_WEBHOOK_SECRET'
-      );
-    }
+      try {
+
+        WebhookSignatureValidator.validate({
+
+          xSignature,
+
+          xRequestId,
+
+          dataId:
+            resourceId,
+
+          secret,
+
+        });
 
 
-    /* ================================= */
-    /* VALIDAR FIRMA                     */
-    /* ================================= */
-
-    try {
+       
 
 
-      WebhookSignatureValidator.validate({
+      } catch (error) {
 
-        xSignature,
+        console.error(
+          'PAYMENT WEBHOOK RECHAZADO',
+        );
 
-        xRequestId,
-
-        dataId:
-          paymentId,
-
-        secret
-
-      });
-
-
-      console.log(
-        'FIRMA WEBHOOK VÁLIDA ✅'
-      );
-
-
-    } catch (error) {
-
-
-      console.error(
-        'FIRMA WEBHOOK INVÁLIDA'
-      );
-
-
-      console.error(
-        error
-      );
-
-
-      if (
-        error instanceof
-        InvalidWebhookSignatureError
-      ) {
 
         throw new UnauthorizedException(
-          'Webhook inválido'
+          'Webhook inválido',
         );
 
       }
 
 
-      throw error;
+      /*
+       * Respondemos sin esperar
+       * todo el procesamiento.
+       */
+
+      void this.mercadoPagoService
+
+        .processPayment(
+          String(
+            resourceId,
+          ),
+        )
+
+        .then(
+          payment => {
+
+      
+
+          },
+        )
+
+        .catch(
+          error => {
+
+            console.error(
+              'ERROR PROCESANDO PAGO:',
+              error,
+            );
+
+          },
+        );
+
+
+      return {
+
+        received:
+          true,
+
+        type,
+
+        paymentId:
+          resourceId,
+
+      };
 
     }
 
 
     /* ================================= */
-    /* BUSCAR PAGO COMPLETO              */
+    /* MERCHANT ORDER                    */
     /* ================================= */
 
-    const payment =
-      await this.mercadoPagoService
-        .processPayment(
-          String(paymentId)
+    if (
+      type ===
+        'topic_merchant_order_wh' ||
+      type ===
+        'merchant_order'
+    ) {
+
+
+      /*
+       * Este evento legacy no lo usamos
+       * como fuente de verdad.
+       *
+       * Solamente usamos su ID y luego
+       * consultamos Mercado Pago
+       * directamente desde el service.
+       */
+
+  
+
+
+      /*
+       * Cuando está abierta todavía
+       * no hay nada que procesar.
+       */
+
+      if (
+        body.status !== 'closed'
+      ) {
+
+       
+
+        return {
+
+          received:
+            true,
+
+          type,
+
+          merchantOrderId:
+            resourceId,
+
+          status:
+            body.status,
+
+        };
+
+      }
+
+
+      /*
+       * Cuando la orden está cerrada,
+       * consultamos la orden real
+       * directamente contra Mercado Pago.
+       */
+
+   
+
+
+      void this.mercadoPagoService
+
+        .processMerchantOrder(
+          String(
+            resourceId,
+          ),
+        )
+
+        .then(
+          result => {
+
+    
+
+          },
+        )
+
+        .catch(
+          error => {
+
+            console.error(
+              'ERROR PROCESANDO MERCHANT ORDER:',
+              error,
+            );
+
+          },
         );
 
 
-    console.log(
-      'PAGO PROCESADO:',
-      payment.status
-    );
+      return {
+
+        received:
+          true,
+
+        type,
+
+        merchantOrderId:
+          resourceId,
+
+        status:
+          body.status,
+
+      };
+
+    }
 
 
     return {
-
-      received:
-        true,
-
-      paymentId,
-
-      status:
-        payment.status
-
+      received: true,
     };
 
   }
@@ -281,13 +366,7 @@ export class MercadoPagoController {
     @Body()
     body: {
 
-      studentId: number;
-
-      studentName: string;
-
-      period: string;
-
-      amount: number;
+      feeId: string;
 
     },
 
@@ -297,17 +376,8 @@ export class MercadoPagoController {
     return this.mercadoPagoService
       .createPreference({
 
-        studentId:
-          Number(body.studentId),
-
-        studentName:
-          body.studentName,
-
-        period:
-          body.period,
-
-        amount:
-          Number(body.amount),
+        feeId:
+          body.feeId,
 
       });
 

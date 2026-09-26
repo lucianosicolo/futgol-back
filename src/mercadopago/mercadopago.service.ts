@@ -1,26 +1,31 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
 
-import { ConfigService } from '@nestjs/config';
+import {
+  ConfigService,
+} from '@nestjs/config';
 
 import {
   MercadoPagoConfig,
   Payment,
-  Preference
+  Preference,
 } from 'mercadopago';
+
+import {
+  FeesService,
+} from 'src/Fees/fees.service';
+
+import {
+  PaymentsService,
+} from 'src/Payments/payments.service';
 
 
 interface CreatePreferenceData {
 
-  studentId: number;
-
-  studentName: string;
-
-  period: string;
-
-  amount: number;
+  feeId: string;
 
 }
 
@@ -35,20 +40,29 @@ export class MercadoPagoService {
 
 
   constructor(
-    private readonly configService: ConfigService
+
+    private readonly configService:
+      ConfigService,
+
+    private readonly feesService:
+      FeesService,
+
+    private readonly paymentsService:
+      PaymentsService,
+
   ) {
 
 
     const accessToken =
       this.configService.get<string>(
-        'MERCADOPAGO_ACCESS_TOKEN'
+        'MERCADOPAGO_ACCESS_TOKEN',
       );
 
 
     if (!accessToken) {
 
       throw new Error(
-        'No se encontró MERCADOPAGO_ACCESS_TOKEN'
+        'No se encontró MERCADOPAGO_ACCESS_TOKEN',
       );
 
     }
@@ -56,7 +70,7 @@ export class MercadoPagoService {
 
     const client =
       new MercadoPagoConfig({
-        accessToken
+        accessToken,
       });
 
 
@@ -75,18 +89,61 @@ export class MercadoPagoService {
   /* ============================= */
 
   async createPreference(
-    data: CreatePreferenceData
+    data: CreatePreferenceData,
   ) {
 
     try {
 
 
       /* ============================= */
-      /* REFERENCIA FUTGOL             */
+      /* BUSCAR CUOTA EN BDD            */
       /* ============================= */
 
+      if (!data.feeId) {
+
+        throw new BadRequestException(
+          'Fee id is required',
+        );
+
+      }
+
+
+      const fee =
+        await this.feesService.getOne(
+          data.feeId,
+        );
+
+
+      /* ============================= */
+      /* VALIDAR CUOTA                  */
+      /* ============================= */
+
+      if (!fee.active) {
+
+        throw new BadRequestException(
+          'Fee is not active',
+        );
+
+      }
+
+
+      if (fee.status === 'paid') {
+
+        throw new BadRequestException(
+          'Fee is already paid',
+        );
+
+      }
+
+
+      /*
+       * La referencia externa ahora
+       * es directamente el UUID
+       * de nuestra cuota.
+       */
+
       const externalReference =
-        `futgol_${data.studentId}_${Date.now()}`;
+        fee.id;
 
 
       /* ============================= */
@@ -95,19 +152,19 @@ export class MercadoPagoService {
 
       const successUrl =
         this.configService.get<string>(
-          'MERCADOPAGO_SUCCESS_URL'
+          'MERCADOPAGO_SUCCESS_URL',
         );
 
 
       const pendingUrl =
         this.configService.get<string>(
-          'MERCADOPAGO_PENDING_URL'
+          'MERCADOPAGO_PENDING_URL',
         );
 
 
       const failureUrl =
         this.configService.get<string>(
-          'MERCADOPAGO_FAILURE_URL'
+          'MERCADOPAGO_FAILURE_URL',
         );
 
 
@@ -118,7 +175,7 @@ export class MercadoPagoService {
       ) {
 
         throw new Error(
-          'Faltan configurar las URLs de retorno de Mercado Pago'
+          'Faltan configurar las URLs de retorno de Mercado Pago',
         );
 
       }
@@ -135,53 +192,12 @@ export class MercadoPagoService {
       ) {
 
         throw new Error(
-          'Las URLs de retorno de Mercado Pago deben usar HTTPS'
+          'Las URLs de retorno de Mercado Pago deben usar HTTPS',
         );
 
       }
 
 
-      console.log(
-        'MERCADO PAGO BACK URLS:',
-        {
-          successUrl,
-          pendingUrl,
-          failureUrl
-        }
-      );
-
-
-      /* ============================= */
-      /* WEBHOOK                       */
-      /* ============================= */
-
-      // const apiPublicUrl =
-      //   this.configService.get<string>(
-      //     'API_PUBLIC_URL'
-      //   );
-
-
-      // let notificationUrl:
-      //   string | undefined;
-
-
-      // if (
-      //   apiPublicUrl &&
-      //   apiPublicUrl.startsWith('https://')
-      // ) {
-
-      //   notificationUrl =
-      //     `${apiPublicUrl.replace(/\/$/, '')}` +
-      //     `/mercadopago/webhook`;
-
-      // }
-
-
-      // console.log(
-      //   'MERCADO PAGO WEBHOOK:',
-      //   notificationUrl ??
-      //   'No configurado todavía'
-      // );
 
 
       /* ============================= */
@@ -201,11 +217,12 @@ export class MercadoPagoService {
               {
 
                 id:
-                  externalReference,
+                  fee.id,
 
                 title:
-                  `Cuota ${data.period} - ` +
-                  `${data.studentName}`,
+                  `Cuota ${fee.period} - ` +
+                  `${fee.student.name} ` +
+                  `${fee.student.last_name}`,
 
                 quantity:
                   1,
@@ -214,36 +231,47 @@ export class MercadoPagoService {
                   'ARS',
 
                 unit_price:
-                  Number(data.amount)
+                  Number(
+                    fee.amount,
+                  ),
 
-              }
+              },
 
             ],
 
 
-            /* REFERENCIA NUESTRA */
+            /* ============================= */
+            /* REFERENCIA FUTGOL             */
+            /* ============================= */
 
             external_reference:
               externalReference,
 
 
-            /* DATA FUTGOL */
+            /* ============================= */
+            /* DATA FUTGOL                   */
+            /* ============================= */
 
             metadata: {
 
+              feeId:
+                fee.id,
+
               studentId:
-                data.studentId,
+                fee.student.id,
 
               studentName:
-                data.studentName,
+                `${fee.student.name} ${fee.student.last_name}`,
 
               period:
-                data.period
+                fee.period,
 
             },
 
 
-            /* RETORNO AL FRONT */
+            /* ============================= */
+            /* RETORNO AL FRONT              */
+            /* ============================= */
 
             back_urls: {
 
@@ -254,38 +282,24 @@ export class MercadoPagoService {
                 pendingUrl,
 
               failure:
-                failureUrl
+                failureUrl,
 
             },
 
 
-            /* VOLVER AUTOMÁTICAMENTE */
+            /* ============================= */
+            /* VOLVER AUTOMÁTICAMENTE        */
+            /* ============================= */
 
             auto_return:
               'approved',
 
-
-            /*
-             * Solamente agregamos notification_url
-             * cuando tenemos un backend público HTTPS.
-             */
-
-            // ...(notificationUrl
-            //   ? {
-            //       notification_url:
-            //         notificationUrl
-            //     }
-            //   : {})
-
-          }
+          },
 
         });
 
 
-      console.log(
-        'PREFERENCIA CREADA:',
-        result.id
-      );
+     
 
 
       /* ============================= */
@@ -301,7 +315,25 @@ export class MercadoPagoService {
           result.sandbox_init_point ??
           result.init_point,
 
-        externalReference
+        externalReference,
+
+        fee: {
+
+          id:
+            fee.id,
+
+          period:
+            fee.period,
+
+          amount:
+            Number(
+              fee.amount,
+            ),
+
+          student:
+            `${fee.student.name} ${fee.student.last_name}`,
+
+        },
 
       };
 
@@ -311,12 +343,27 @@ export class MercadoPagoService {
 
       console.error(
         'Error creando preferencia:',
-        error
+        error,
       );
 
 
+      /*
+       * Si es un error nuestro
+       * de validación, lo dejamos pasar.
+       */
+
+      if (
+        error instanceof
+        BadRequestException
+      ) {
+
+        throw error;
+
+      }
+
+
       throw new InternalServerErrorException(
-        'No se pudo crear el pago de Mercado Pago'
+        'No se pudo crear el pago de Mercado Pago',
       );
 
     }
@@ -329,144 +376,75 @@ export class MercadoPagoService {
   /* ============================= */
 
   async processPayment(
-    paymentId: string
+    paymentId: string,
   ) {
 
     try {
 
 
+      /* ============================= */
+      /* CONSULTAR MERCADO PAGO        */
+      /* ============================= */
+
       const mpPayment =
         await this.payment.get({
 
           id:
-            paymentId
+            paymentId,
 
         });
 
 
-      console.log(
-        '=============================='
-      );
 
 
-      console.log(
-        'PAGO COMPLETO MERCADO PAGO'
-      );
+    
+
+   
 
 
-      console.log(
-        JSON.stringify(
-          mpPayment,
-          null,
-          2
-        )
-      );
+    
 
+      /* ============================= */
+      /* VALIDAR REFERENCIA            */
+      /* ============================= */
 
-      console.log(
-        '=============================='
-      );
+      if (
+        !mpPayment.external_reference
+      ) {
+
+        throw new BadRequestException(
+          'Mercado Pago payment has no external reference',
+        );
+
+      }
 
 
       /* ============================= */
-      /* DATA QUE DESPUÉS VA A BDD     */
+      /* GUARDAR PAGO EN MYSQL         */
       /* ============================= */
 
-      const futgolPayment = {
-
-        mercadoPagoPaymentId:
-          String(mpPayment.id),
-
-        externalReference:
-          mpPayment.external_reference,
-
-        studentId:
-          Number(
-            mpPayment.metadata?.studentId
-          ),
-
-        period:
-          String(
-            mpPayment.metadata?.period ??
-            ''
-          ),
-
-        amount:
-          Number(
-            mpPayment.transaction_amount
-          ),
-
-        currency:
-          mpPayment.currency_id,
-
-        status:
-          mpPayment.status,
-
-        statusDetail:
-          mpPayment.status_detail,
-
-        paymentMethodId:
-          mpPayment.payment_method_id,
-
-        paymentTypeId:
-          mpPayment.payment_type_id,
-
-        installments:
-          mpPayment.installments ?? 1,
-
-        payerEmail:
-          mpPayment.payer?.email ??
-          null,
-
-        payerDocument:
-          mpPayment.payer
-            ?.identification
-            ?.number ??
-          null,
-
-        dateCreated:
-          mpPayment.date_created,
-
-        dateApproved:
-          mpPayment.date_approved,
-
-        dateLastUpdated:
-          mpPayment.date_last_updated,
-
-        rawResponse:
-          mpPayment
-
-      };
+      const payment =
+        await this.paymentsService
+          .saveMercadoPagoPayment(
+            mpPayment,
+          );
 
 
-      console.log(
-        'PAGO PREPARADO PARA FUTGOL:'
-      );
 
-
-      console.log(
-        JSON.stringify(
-          futgolPayment,
-          null,
-          2
-        )
-      );
-
+   
 
       /*
-       * ACÁ DESPUÉS HACEMOS:
+       * PaymentsService se encarga de:
        *
-       * await this.paymentRepository.upsert(...)
-       *
-       * y si:
-       *
-       * mpPayment.status === 'approved'
-       *
-       * cuota → AL DÍA
+       * - crear Payment si no existe
+       * - actualizarlo si ya existe
+       * - verificar el monto
+       * - verificar status approved
+       * - cambiar Fee de due a paid
        */
 
 
-      return futgolPayment;
+      return payment;
 
 
     } catch (error) {
@@ -474,16 +452,194 @@ export class MercadoPagoService {
 
       console.error(
         'Error obteniendo pago:',
-        error
+        error,
       );
 
 
+      if (
+        error instanceof
+        BadRequestException
+      ) {
+
+        throw error;
+
+      }
+
+
       throw new InternalServerErrorException(
-        'No se pudo obtener el pago de Mercado Pago'
+        'No se pudo obtener el pago de Mercado Pago',
       );
 
     }
 
   }
+  /* ================================= */
+/* PROCESAR ORDEN COMERCIAL          */
+/* ================================= */
+
+async processMerchantOrder(
+  merchantOrderId: string,
+) {
+
+  try {
+
+
+    const accessToken =
+      this.configService.get<string>(
+        'MERCADOPAGO_ACCESS_TOKEN',
+      );
+
+
+    if (!accessToken) {
+
+      throw new Error(
+        'No se encontró MERCADOPAGO_ACCESS_TOKEN',
+      );
+
+    }
+
+
+    /* ================================= */
+    /* CONSULTAR MERCHANT ORDER          */
+    /* ================================= */
+
+    const response =
+      await fetch(
+
+        `https://api.mercadopago.com/merchant_orders/${merchantOrderId}`,
+
+        {
+
+          method:
+            'GET',
+
+          headers: {
+
+            Authorization:
+              `Bearer ${accessToken}`,
+
+            'Content-Type':
+              'application/json',
+
+          },
+
+        },
+
+      );
+
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+
+      throw new Error(
+        `Error consultando merchant order: ${response.status} ${errorText}`,
+      );
+
+    }
+
+
+    const merchantOrder: any =
+      await response.json();
+
+
+ 
+   
+
+
+    /* ================================= */
+    /* BUSCAR PAGOS                      */
+    /* ================================= */
+
+    const payments =
+      merchantOrder.payments ?? [];
+
+
+    if (
+      payments.length === 0
+    ) {
+
+    
+
+      return {
+        merchantOrderId,
+        payments: [],
+      };
+
+    }
+
+
+
+    /* ================================= */
+    /* PROCESAR PAGOS REALES             */
+    /* ================================= */
+
+    const processedPayments:
+      any[] = [];
+
+
+    for (
+      const payment of payments
+    ) {
+
+      if (!payment.id) {
+        continue;
+      }
+
+
+      /*
+       * Usamos el mismo método
+       * que ya tenemos para payment.
+       */
+
+      const processedPayment =
+        await this.processPayment(
+          String(
+            payment.id,
+          ),
+        );
+
+
+      processedPayments.push(
+        processedPayment,
+      );
+
+    }
+
+
+    return {
+
+      merchantOrderId,
+
+      status:
+        merchantOrder.status,
+
+      externalReference:
+        merchantOrder.external_reference,
+
+      payments:
+        processedPayments,
+
+    };
+
+
+  } catch (error) {
+
+
+    console.error(
+      'Error procesando merchant order:',
+      error,
+    );
+
+
+    throw new InternalServerErrorException(
+      'No se pudo procesar la orden comercial de Mercado Pago',
+    );
+
+  }
+
+}
 
 }

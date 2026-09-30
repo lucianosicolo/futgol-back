@@ -1,12 +1,10 @@
 import {
   Module,
 } from '@nestjs/common';
+
 import {
   ConfigService,
 } from '@nestjs/config';
-import type {
-  SignOptions,
-} from 'jsonwebtoken';
 
 import {
   JwtModule,
@@ -15,6 +13,10 @@ import {
 import {
   PassportModule,
 } from '@nestjs/passport';
+
+import type {
+  SignOptions,
+} from 'jsonwebtoken';
 
 import {
   UsersModule,
@@ -35,6 +37,10 @@ import {
 import {
   JwtAuthGuard,
 } from './jwt-auth.guard';
+
+import {
+  RolesGuard,
+} from './roles.guard';
 
 
 @Module({
@@ -95,6 +101,8 @@ import {
 
     JwtAuthGuard,
 
+    RolesGuard,
+
   ],
 
   exports: [
@@ -103,9 +111,11 @@ import {
 
     JwtAuthGuard,
 
+    RolesGuard,
+
     JwtModule,
 
   ],
 
 })
-export class AuthModule { }
+export class AuthModule {}

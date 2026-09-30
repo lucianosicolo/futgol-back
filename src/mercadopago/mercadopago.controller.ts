@@ -5,7 +5,9 @@ import {
   HttpCode,
   Post,
   Query,
+  Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 
 import {
@@ -19,6 +21,10 @@ import {
 import {
   MercadoPagoService,
 } from './mercadopago.service';
+import { UserRole } from 'src/Users/user-role.enum';
+import { Roles } from 'src/Auth/roles.decorator';
+import { RolesGuard } from 'src/Auth/roles.guard';
+import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
 
 
 @Controller('mercadopago')
@@ -33,7 +39,7 @@ export class MercadoPagoController {
     private readonly configService:
       ConfigService,
 
-  ) {}
+  ) { }
 
 
   /* ================================= */
@@ -119,7 +125,7 @@ export class MercadoPagoController {
 
     if (!resourceId) {
 
-    
+
 
 
       return {
@@ -129,7 +135,7 @@ export class MercadoPagoController {
     }
 
 
- 
+
 
     /* ================================= */
     /* PAYMENT                           */
@@ -176,7 +182,7 @@ export class MercadoPagoController {
         });
 
 
-       
+
 
 
       } catch (error) {
@@ -209,7 +215,7 @@ export class MercadoPagoController {
         .then(
           payment => {
 
-      
+
 
           },
         )
@@ -247,9 +253,9 @@ export class MercadoPagoController {
 
     if (
       type ===
-        'topic_merchant_order_wh' ||
+      'topic_merchant_order_wh' ||
       type ===
-        'merchant_order'
+      'merchant_order'
     ) {
 
 
@@ -262,7 +268,7 @@ export class MercadoPagoController {
        * directamente desde el service.
        */
 
-  
+
 
 
       /*
@@ -274,7 +280,7 @@ export class MercadoPagoController {
         body.status !== 'closed'
       ) {
 
-       
+
 
         return {
 
@@ -300,7 +306,7 @@ export class MercadoPagoController {
        * directamente contra Mercado Pago.
        */
 
-   
+
 
 
       void this.mercadoPagoService
@@ -314,7 +320,7 @@ export class MercadoPagoController {
         .then(
           result => {
 
-    
+
 
           },
         )
@@ -359,28 +365,48 @@ export class MercadoPagoController {
   /* ================================= */
   /* CREAR PREFERENCIA                 */
   /* ================================= */
+@Post('preference')
 
-  @Post('preference')
-  createPreference(
+@UseGuards(
+  JwtAuthGuard,
+  RolesGuard,
+)
 
-    @Body()
-    body: {
+@Roles(
+  UserRole.ADMIN,
+  UserRole.TEACHER,
+  UserRole.RESPONSIBLE,
+)
 
-      feeId: string;
+createPreference(
 
-    },
+  @Req()
+  req: any,
 
-  ) {
+  @Body()
+  body: {
+
+    feeId: string;
+
+  },
+
+) {
 
 
-    return this.mercadoPagoService
-      .createPreference({
+  return this.mercadoPagoService
+    .createPreference({
 
-        feeId:
-          body.feeId,
+      feeId:
+        body.feeId,
 
-      });
+      userId:
+        req.user.id,
 
-  }
+      role:
+        req.user.role,
+
+    });
+
+}
 
 }

@@ -12,6 +12,7 @@ import {
 } from '@nestjs/typeorm';
 
 import {
+  In,
   Like,
   Repository,
 } from 'typeorm';
@@ -19,6 +20,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './users.entity';
 import { UserDto } from './users.dto';
+import { UserRole } from './user-role.enum';
+import { StudentEntity } from 'src/Students/students.entity';
 
 
 
@@ -30,9 +33,14 @@ export class UsersService {
   constructor(
 
     @InjectRepository(UserEntity)
-    private repo: Repository<UserEntity>,
+    private repo:
+      Repository<UserEntity>,
 
-  ) {}
+    @InjectRepository(StudentEntity)
+    private studentsRepo:
+      Repository<StudentEntity>,
+
+  ) { }
 
 
   //! GET ALL --------------------------------------------------------->
@@ -40,42 +48,44 @@ export class UsersService {
   async getAll(
     name?: string,
     email?: string,
-    role?: string,
+    role?: UserRole,
     active?: boolean,
   ): Promise<UserDto[]> {
 
     try {
 
       return await this.repo.find({
-
+relations:{
+   students: true,
+},
         where: {
 
           ...(name
             ? {
-                name: Like(
-                  `%${name}%`,
-                ),
-              }
+              name: Like(
+                `%${name}%`,
+              ),
+            }
             : {}),
 
           ...(email
             ? {
-                email: Like(
-                  `%${email}%`,
-                ),
-              }
+              email: Like(
+                `%${email}%`,
+              ),
+            }
             : {}),
 
           ...(role
             ? {
-                role,
-              }
+              role,
+            }
             : {}),
 
           ...(active !== undefined
             ? {
-                active,
-              }
+              active,
+            }
             : {}),
 
         },
@@ -156,6 +166,7 @@ export class UsersService {
 
 
   //! INSERT ---------------------------------------------------------->
+  //! INSERT ---------------------------------------------------------->
 
   async insert(
     type: UserDto,
@@ -164,10 +175,7 @@ export class UsersService {
     try {
 
       /*
-       * Normalizamos email para evitar:
-       *
-       * usuario@gmail.com
-       * Usuario@gmail.com
+       * Normalizamos email.
        */
 
       const email =
@@ -200,14 +208,17 @@ export class UsersService {
 
 
       /*
-       * Validamos el rol.
+       * Validamos rol.
        */
 
-      const validRoles = [
-        'admin',
-        'teacher',
-        'responsible',
-      ];
+      const validRoles:
+        UserRole[] = [
+
+          UserRole.ADMIN,
+          UserRole.TEACHER,
+          UserRole.RESPONSIBLE,
+
+        ];
 
 
       if (
@@ -235,7 +246,84 @@ export class UsersService {
 
 
       /*
+       * Alumnos a cargo.
+       */
+
+      let students:
+        StudentEntity[] =
+        [];
+
+
+      if (
+        type.students &&
+        type.students.length > 0
+      ) {
+
+        const studentIds =
+          [
+            ...new Set(
+
+              type.students
+                .map(
+                  student =>
+                    student.id,
+                )
+                .filter(
+                  id => !!id,
+                ),
+
+            ),
+          ];
+
+
+        if (
+          studentIds.length === 0
+        ) {
+
+          throw new BadRequestException(
+            'Invalid students',
+          );
+
+        }
+
+
+        students =
+          await this.studentsRepo.find({
+
+            where: {
+
+              id:
+                In(
+                  studentIds,
+                ),
+
+              active:
+                true,
+
+            },
+
+          });
+
+
+        if (
+          students.length !==
+          studentIds.length
+        ) {
+
+          throw new NotFoundException(
+            'One or more students were not found',
+          );
+
+        }
+
+      }
+
+
+      /*
        * Creamos usuario.
+       *
+       * Esto tiene que estar FUERA
+       * del if anterior.
        */
 
       const newType =
@@ -260,6 +348,8 @@ export class UsersService {
           active:
             true,
 
+          students,
+
         });
 
 
@@ -270,7 +360,7 @@ export class UsersService {
 
 
       /*
-       * No devolvemos la contraseña.
+       * No devolvemos password.
        */
 
       delete (
@@ -280,14 +370,17 @@ export class UsersService {
 
       return result;
 
+
     } catch (error: any) {
 
       throw new HttpException(
+
         error.response ??
         error.message,
 
         error.status ??
         HttpStatus.INTERNAL_SERVER_ERROR,
+
       );
 
     }
@@ -296,161 +389,335 @@ export class UsersService {
 
 
   //! UPDATE ---------------------------------------------------------->
+//! UPDATE ---------------------------------------------------------->
 
-  async update(
-    id: string,
-    type: Partial<UserDto>,
-  ): Promise<UserDto> {
+async update(
 
-    if (!id) {
+  id: string,
 
-      throw new BadRequestException(
-        'Invalid id parameter',
+  type:
+    Partial<UserDto>,
+
+): Promise<UserDto> {
+
+  if (!id) {
+
+    throw new BadRequestException(
+      'Invalid id parameter',
+    );
+
+  }
+
+
+  try {
+
+    /*
+     * Traemos también los alumnos
+     * actualmente asociados.
+     */
+
+    const entity =
+      await this.repo.findOne({
+
+        where: {
+          id,
+        },
+
+        relations: {
+          students: true,
+        },
+
+      });
+
+
+    if (!entity) {
+
+      throw new NotFoundException(
+        'User not found',
       );
 
     }
 
 
-    try {
+    /* ============================= */
+    /* EMAIL                         */
+    /* ============================= */
 
-      const entity =
+    if (type.email) {
+
+      const email =
+        type.email
+          .trim()
+          .toLowerCase();
+
+
+      const existingUser =
         await this.repo.findOne({
 
           where: {
-            id,
+            email,
           },
 
         });
 
 
-      if (!entity) {
+      if (
+        existingUser &&
+        existingUser.id !== id
+      ) {
 
-        throw new NotFoundException(
-          'User not found',
+        throw new ConflictException(
+          'User already exists',
         );
 
       }
 
 
+      type.email =
+        email;
+
+    }
+
+
+    /* ============================= */
+    /* ROL                           */
+    /* ============================= */
+
+    if (type.role) {
+
+      const validRoles:
+        UserRole[] = [
+
+          UserRole.ADMIN,
+          UserRole.TEACHER,
+          UserRole.RESPONSIBLE,
+
+        ];
+
+
+      if (
+        !validRoles.includes(
+          type.role,
+        )
+      ) {
+
+        throw new BadRequestException(
+          'Invalid user role',
+        );
+
+      }
+
+    }
+
+
+    /* ============================= */
+    /* PASSWORD                      */
+    /* ============================= */
+
+    if (type.password) {
+
+      type.password =
+        await bcrypt.hash(
+          type.password,
+          10,
+        );
+
+    }
+
+
+    /* ============================= */
+    /* ALUMNOS A CARGO               */
+    /* ============================= */
+
+    let students:
+      StudentEntity[] | undefined =
+      undefined;
+
+
+    /*
+     * Importante:
+     *
+     * undefined
+     * → no tocar relaciones
+     *
+     * []
+     * → eliminar todas
+     *
+     * [{ id: ... }]
+     * → reemplazar por esas
+     */
+
+    if (
+      type.students !== undefined
+    ) {
+
       /*
-       * Si cambia email,
-       * verificamos duplicados.
+       * Solamente un responsable
+       * debería tener alumnos
+       * asociados a cargo.
        */
 
-      if (type.email) {
-
-        const email =
-          type.email
-            .trim()
-            .toLowerCase();
+      const finalRole =
+        type.role ??
+        entity.role;
 
 
-        const existingUser =
-          await this.repo.findOne({
+      if (
+        finalRole !==
+        UserRole.RESPONSIBLE
+      ) {
+
+        if (
+          type.students.length > 0
+        ) {
+
+          throw new BadRequestException(
+            'Only responsible users can have students assigned',
+          );
+
+        }
+
+      }
+
+
+      if (
+        type.students.length === 0
+      ) {
+
+        students =
+          [];
+
+      } else {
+
+        const studentIds =
+          [
+            ...new Set(
+
+              type.students
+                .map(
+                  student =>
+                    student.id,
+                )
+                .filter(
+                  id => !!id,
+                ),
+
+            ),
+          ];
+
+
+        if (
+          studentIds.length === 0
+        ) {
+
+          throw new BadRequestException(
+            'Invalid students',
+          );
+
+        }
+
+
+        students =
+          await this.studentsRepo.find({
 
             where: {
-              email,
+
+              id:
+                In(
+                  studentIds,
+                ),
+
+              active:
+                true,
+
             },
 
           });
 
 
         if (
-          existingUser &&
-          existingUser.id !== id
+          students.length !==
+          studentIds.length
         ) {
 
-          throw new ConflictException(
-            'User already exists',
-          );
-
-        }
-
-
-        type.email =
-          email;
-
-      }
-
-
-      /*
-       * Si cambia rol,
-       * validamos.
-       */
-
-      if (type.role) {
-
-        const validRoles = [
-          'admin',
-          'teacher',
-          'responsible',
-        ];
-
-
-        if (
-          !validRoles.includes(
-            type.role,
-          )
-        ) {
-
-          throw new BadRequestException(
-            'Invalid user role',
+          throw new NotFoundException(
+            'One or more students were not found',
           );
 
         }
 
       }
-
-
-      /*
-       * Si mandan nueva contraseña,
-       * la volvemos a hashear.
-       */
-
-      if (type.password) {
-
-        type.password =
-          await bcrypt.hash(
-            type.password,
-            10,
-          );
-
-      }
-
-
-      const mergeEntity =
-        this.repo.merge(
-          entity,
-          type,
-        );
-
-
-      const result =
-        await this.repo.save(
-          mergeEntity,
-        );
-
-
-      delete (
-        result as Partial<UserEntity>
-      ).password;
-
-
-      return result;
-
-    } catch (error: any) {
-
-      throw new HttpException(
-        error.response ??
-        error.message,
-
-        error.status ??
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
 
     }
 
+
+    /* ============================= */
+    /* DATOS NORMALES                */
+    /* ============================= */
+
+    const {
+      students:
+        ignoredStudents,
+
+      ...userData
+
+    } = type;
+
+
+    const mergeEntity =
+      this.repo.merge(
+
+        entity,
+
+        userData,
+
+      );
+
+
+    /*
+     * Solo reemplazamos la relación
+     * cuando students vino en el PUT.
+     */
+
+    if (
+      students !== undefined
+    ) {
+
+      mergeEntity.students =
+        students;
+
+    }
+
+
+    const result =
+      await this.repo.save(
+        mergeEntity,
+      );
+
+
+    delete (
+      result as Partial<UserEntity>
+    ).password;
+
+
+    return result;
+
+
+  } catch (error: any) {
+
+    throw new HttpException(
+
+      error.response ??
+      error.message,
+
+      error.status ??
+      HttpStatus.INTERNAL_SERVER_ERROR,
+
+    );
+
   }
+
+}
 
 
   //! DELETE ---------------------------------------------------------->

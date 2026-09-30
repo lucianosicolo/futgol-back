@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -25,10 +26,20 @@ import { FeeDto } from './fees.dto';
 import {
   JwtAuthGuard,
 } from 'src/Auth/jwt-auth.guard';
+import { UserRole } from 'src/Users/user-role.enum';
+import { Roles } from 'src/Auth/roles.decorator';
+import { RolesGuard } from 'src/Auth/roles.guard';
 
 
 @Controller('fees')
-@UseGuards(JwtAuthGuard)
+@UseGuards(
+  JwtAuthGuard,
+  RolesGuard,
+)
+@Roles(
+  UserRole.ADMIN,
+  UserRole.TEACHER,
+)
 export class FeesController {
 
 
@@ -95,7 +106,39 @@ export class FeesController {
 
   }
 
+@Get('my')
+@Roles(
+  UserRole.RESPONSIBLE,
+)
+async getMyFees(
 
+  @Req()
+  req: any,
+
+  @Res()
+  res: Response,
+
+) {
+
+  const result =
+    await this.service.getMyFees(
+      req.user.id,
+    );
+
+
+  res.status(
+    HttpStatus.OK,
+  ).json({
+
+    ok: true,
+
+    result,
+
+    msg: 'Approved',
+
+  });
+
+}
   //! GET ONE --------------------------------------------------------->
 
   @Get(':id')

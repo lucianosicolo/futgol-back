@@ -21,14 +21,18 @@ import {
 import {
   PaymentsService,
 } from 'src/Payments/payments.service';
+import { UserRole } from 'src/Users/user-role.enum';
 
 
 interface CreatePreferenceData {
 
   feeId: string;
 
-}
+  userId: string;
 
+  role: UserRole;
+
+}
 
 @Injectable()
 export class MercadoPagoService {
@@ -107,12 +111,27 @@ export class MercadoPagoService {
 
       }
 
+const notificationUrl =
+  this.configService.get<string>(
+    'MERCADOPAGO_NOTIFICATION_URL',
+  )?.trim();
 
-      const fee =
-        await this.feesService.getOne(
-          data.feeId,
-        );
+if (!notificationUrl) {
+  throw new Error(
+    'Falta MERCADOPAGO_NOTIFICATION_URL',
+  );
+}
+   const fee =
+  await this.feesService
+    .getOneForUser(
 
+      data.feeId,
+
+      data.userId,
+
+      data.role,
+
+    );
 
       /* ============================= */
       /* VALIDAR CUOTA                  */
@@ -246,6 +265,8 @@ export class MercadoPagoService {
 
             external_reference:
               externalReference,
+              notification_url:
+  notificationUrl,
 
 
             /* ============================= */
@@ -347,10 +368,7 @@ export class MercadoPagoService {
       );
 
 
-      /*
-       * Si es un error nuestro
-       * de validación, lo dejamos pasar.
-       */
+  
 
       if (
         error instanceof
@@ -371,10 +389,6 @@ export class MercadoPagoService {
   }
 
 
-  /* ============================= */
-  /* BUSCAR PAGO EN MERCADO PAGO  */
-  /* ============================= */
-
   async processPayment(
     paymentId: string,
   ) {
@@ -382,9 +396,7 @@ export class MercadoPagoService {
     try {
 
 
-      /* ============================= */
-      /* CONSULTAR MERCADO PAGO        */
-      /* ============================= */
+
 
       const mpPayment =
         await this.payment.get({
@@ -404,9 +416,7 @@ export class MercadoPagoService {
 
     
 
-      /* ============================= */
-      /* VALIDAR REFERENCIA            */
-      /* ============================= */
+ 
 
       if (
         !mpPayment.external_reference

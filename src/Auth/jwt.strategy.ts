@@ -14,6 +14,7 @@ import {
   ExtractJwt,
   Strategy,
 } from 'passport-jwt';
+import { UserRole } from 'src/Users/user-role.enum';
 
 
 @Injectable()
@@ -46,34 +47,31 @@ export class JwtStrategy
     });
 
   }
+async validate(
+  payload: {
 
+    sub: string;
 
-  async validate(
-    payload: {
+    email: string;
 
-      sub: string;
+    role: UserRole;
 
-      email: string;
+  },
+) {
 
-      role: string;
+  return {
 
-    },
-  ) {
+    id:
+      payload.sub,
 
+    email:
+      payload.email,
 
-    return {
+    role:
+      payload.role,
 
-      id:
-        payload.sub,
+  };
 
-      email:
-        payload.email,
-
-      role:
-        payload.role,
-
-    };
-
-  }
+}
 
 }

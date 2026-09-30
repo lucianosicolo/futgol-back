@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -29,6 +30,7 @@ import {
 import {
   StudentsService,
 } from 'src/Students/students.service';
+import { UserRole } from 'src/Users/user-role.enum';
 
 
 @Injectable()
@@ -106,8 +108,12 @@ export class FeesService {
             conditions,
 
           relations: {
-            student: true,
-          },
+  student: {
+    category: true,
+    user: true,
+    responsibles: true,
+  },
+},
 
           order: {
             due_date: 'DESC',
@@ -136,7 +142,224 @@ export class FeesService {
 
   }
 
+//! GET MY FEES ------------------------------------------------------>
+//! GET MY FEES ------------------------------------------------------>
+//! GET ONE FOR USER -------------------------------------------------->
 
+async getOneForUser(
+
+  feeId: string,
+
+  userId: string,
+
+  role: UserRole,
+
+): Promise<FeeEntity> {
+
+
+  /*
+   * Admin y profesor pueden
+   * trabajar con cualquier cuota.
+   */
+
+  if (
+    role === UserRole.ADMIN ||
+    role === UserRole.TEACHER
+  ) {
+
+    return await this.getOne(
+      feeId,
+    );
+
+  }
+
+
+  /*
+   * Cualquier otro rol que llegue
+   * hasta acá debe ser Mi FUTGOL.
+   */
+
+  if (
+    role !== UserRole.RESPONSIBLE
+  ) {
+
+    throw new ForbiddenException(
+      'User cannot access this fee',
+    );
+
+  }
+
+
+  try {
+
+
+    const fee =
+      await this.repo
+        .createQueryBuilder(
+          'fee',
+        )
+
+        .leftJoinAndSelect(
+          'fee.student',
+          'student',
+        )
+
+        .leftJoin(
+          'student.user',
+          'studentUser',
+        )
+
+        .leftJoin(
+          'student.responsibles',
+          'responsible',
+        )
+
+        .where(
+          'fee.id = :feeId',
+          {
+            feeId,
+          },
+        )
+
+        .andWhere(
+          `(
+            studentUser.id = :userId
+            OR
+            responsible.id = :userId
+          )`,
+          {
+            userId,
+          },
+        )
+
+        .distinct(
+          true,
+        )
+
+        .getOne();
+
+
+    if (!fee) {
+
+      throw new ForbiddenException(
+        'You cannot access this fee',
+      );
+
+    }
+
+
+    return fee;
+
+
+  } catch (error: any) {
+
+
+    if (
+      error instanceof
+      ForbiddenException
+    ) {
+
+      throw error;
+
+    }
+
+
+    throw new HttpException(
+
+      error.response ??
+      error.message,
+
+      error.status ??
+      HttpStatus.INTERNAL_SERVER_ERROR,
+
+    );
+
+  }
+
+}
+async getMyFees(
+  userId: string,
+): Promise<FeeEntity[]> {
+
+  try {
+
+    return await this.repo
+      .createQueryBuilder(
+        'fee',
+      )
+
+      .leftJoinAndSelect(
+        'fee.student',
+        'student',
+      )
+
+      .leftJoinAndSelect(
+        'student.category',
+        'category',
+      )
+
+      /*
+       * ¿La cuota pertenece
+       * al propio usuario?
+       */
+      .leftJoin(
+        'student.user',
+        'studentUser',
+      )
+
+      /*
+       * ¿La cuota pertenece
+       * a un hijo del responsable?
+       */
+      .leftJoin(
+        'student.responsibles',
+        'responsible',
+      )
+
+      .where(
+        `(
+          studentUser.id = :userId
+          OR
+          responsible.id = :userId
+        )`,
+        {
+          userId,
+        },
+      )
+
+      .andWhere(
+        'fee.active = :active',
+        {
+          active: true,
+        },
+      )
+
+      .distinct(
+        true,
+      )
+
+      .orderBy(
+        'fee.due_date',
+        'DESC',
+      )
+
+      .getMany();
+
+  } catch (error: any) {
+
+    throw new HttpException(
+
+      error.response ??
+      error.message,
+
+      error.status ??
+      HttpStatus.INTERNAL_SERVER_ERROR,
+
+    );
+
+  }
+
+}
   //! GET ONE --------------------------------------------------------->
 
   async getOne(

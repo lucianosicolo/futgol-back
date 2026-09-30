@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -25,6 +26,9 @@ import {
   StudentDto,
 } from './students.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
+import { UserRole } from 'src/Users/user-role.enum';
+import { Roles } from 'src/Auth/roles.decorator';
+import { RolesGuard } from 'src/Auth/roles.guard';
 
 
 @Controller('students')
@@ -41,7 +45,14 @@ export class StudentsController {
   //! GET ALL --------------------------------------------------------->
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+ @UseGuards(
+  JwtAuthGuard,
+  RolesGuard,
+)
+@Roles(
+  UserRole.ADMIN,
+  UserRole.TEACHER,
+)
   async getAll(
 
     @Query('name')
@@ -95,7 +106,39 @@ export class StudentsController {
 
   }
 
+@Get('my')
+@Roles(
+  UserRole.RESPONSIBLE,
+)
+async getMyStudents(
 
+  @Req()
+  req: any,
+
+  @Res()
+  res: Response,
+
+) {
+
+  const result =
+    await this.service.getMyStudents(
+      req.user.id,
+    );
+
+
+  res.status(
+    HttpStatus.OK,
+  ).json({
+
+    ok: true,
+
+    result,
+
+    msg: 'Approved',
+
+  });
+
+}
   //! GET ONE --------------------------------------------------------->
 
   @Get(':id')

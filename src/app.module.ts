@@ -20,6 +20,7 @@ import { FeesModule } from './Fees/fees.module';
 import { StudentsModule } from './Students/students.module';
 import { PaymentsModule } from './Payments/payments.module';
 import { AuthModule } from './Auth/auth.module';
+import { AsistenciaModule } from './Asistencia/asistencia.module';
 
 
 @Module({
@@ -92,6 +93,7 @@ import { AuthModule } from './Auth/auth.module';
     FeesModule,
     PaymentsModule,
     AuthModule,
+    AsistenciaModule,
 
   ],
 

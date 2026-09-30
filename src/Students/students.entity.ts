@@ -7,6 +7,7 @@ import {
   JoinColumn,
   ManyToMany,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
@@ -81,4 +82,14 @@ export class StudentEntity {
   (user) => user.students,
 )
 responsibles: UserEntity[];
+@OneToOne(
+  () => UserEntity,
+  {
+    nullable: true,
+  },
+)
+@JoinColumn({
+  name: 'user_id',
+})
+user: UserEntity | null;
 }

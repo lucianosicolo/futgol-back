@@ -15,6 +15,7 @@ import {
   UsersService,
 } from './users.service';
 import { UserEntity } from './users.entity';
+import { StudentEntity } from 'src/Students/students.entity';
 
 
 @Module({
@@ -23,6 +24,7 @@ import { UserEntity } from './users.entity';
 
     TypeOrmModule.forFeature([
       UserEntity,
+        StudentEntity,
     ]),
 
   ],

@@ -11,15 +11,16 @@ import {
   InjectRepository,
 } from '@nestjs/typeorm';
 
+import { CategoriesService } from 'src/Categories/categories.service';
+import { UserEntity } from 'src/Users/users.entity';
 import {
   FindManyOptions,
   FindOptionsWhere,
   Like,
   Repository,
 } from 'typeorm';
-import { StudentEntity } from './students.entity';
-import { CategoriesService } from 'src/Categories/categories.service';
 import { StudentDto } from './students.dto';
+import { StudentEntity } from './students.entity';
 
 
 
@@ -31,12 +32,17 @@ export class StudentsService {
   constructor(
 
     @InjectRepository(StudentEntity)
-    private repo: Repository<StudentEntity>,
+    private repo:
+      Repository<StudentEntity>,
+
+    @InjectRepository(UserEntity)
+    private usersRepo:
+      Repository<UserEntity>,
 
     private readonly categoriesService:
       CategoriesService,
 
-  ) {}
+  ) { }
 
 
   //! GET ALL --------------------------------------------------------->
@@ -95,19 +101,19 @@ export class StudentsService {
       const findOptions:
         FindManyOptions<StudentEntity> = {
 
-          where:
-            conditions,
+        where:
+          conditions,
 
-          relations: {
-            category: true,
-          },
+        relations: {
+          category: true,
+        },
 
-          order: {
-            last_name: 'ASC',
-            name: 'ASC',
-          },
+        order: {
+          last_name: 'ASC',
+          name: 'ASC',
+        },
 
-        };
+      };
 
 
       return await this.repo.find(
@@ -133,9 +139,9 @@ export class StudentsService {
 
   //! GET ONE --------------------------------------------------------->
 
- async getOne(
-  id: string,
-): Promise<StudentEntity> {
+  async getOne(
+    id: string,
+  ): Promise<StudentEntity> {
 
     if (!id) {
 
@@ -157,6 +163,8 @@ export class StudentsService {
 
           relations: {
             category: true,
+            user: true,
+            responsibles: true,
           },
 
         });
@@ -249,7 +257,67 @@ export class StudentsService {
           type.category.id,
         );
 
+      /*
+       * El alumno puede tener
+       * una cuenta propia asociada.
+       */
 
+      let user:
+        UserEntity | null =
+        null;
+
+
+      if (type.user_id) {
+
+        /*
+         * Verificamos que el usuario exista.
+         */
+
+        user =
+          await this.usersRepo.findOne({
+
+            where: {
+              id: type.user_id,
+            },
+
+          });
+
+
+        if (!user) {
+
+          throw new NotFoundException(
+            'User not found',
+          );
+
+        }
+
+
+        /*
+         * Verificamos que esa cuenta
+         * no esté asociada ya a otro alumno.
+         */
+
+        const existingLink =
+          await this.repo.findOne({
+
+            where: {
+              user: {
+                id: type.user_id,
+              },
+            },
+
+          });
+
+
+        if (existingLink) {
+
+          throw new ConflictException(
+            'User is already linked to a student',
+          );
+
+        }
+
+      }
       /*
        * Creamos alumno.
        */
@@ -278,8 +346,9 @@ export class StudentsService {
           active:
             true,
 
-          category:
-            category,
+          category,
+
+          user,
 
         });
 
@@ -416,6 +485,7 @@ export class StudentsService {
 
       const {
         category,
+        responsibles,
         ...studentData
       } = type;
 
@@ -503,6 +573,140 @@ export class StudentsService {
       return await this.repo.save(
         entity,
       );
+
+    } catch (error: any) {
+
+      throw new HttpException(
+
+        error.response ??
+        error.message,
+
+        error.status ??
+        HttpStatus.INTERNAL_SERVER_ERROR,
+
+      );
+
+    }
+
+  }
+  //! GET MY STUDENTS -------------------------------------------------->
+  //! GET MY STUDENTS -------------------------------------------------->
+  //! GET MY STUDENTS -------------------------------------------------->
+
+  async getMyStudents(
+    userId: string,
+  ) {
+
+    try {
+
+      /*
+       * =================================
+       * EL PROPIO USUARIO COMO ALUMNO
+       * =================================
+       *
+       * Ejemplo:
+       *
+       * User Josefina
+       *      ↓
+       * Student Josefina
+       */
+
+      const self =
+        await this.repo
+          .createQueryBuilder(
+            'student',
+          )
+
+          .leftJoinAndSelect(
+            'student.category',
+            'category',
+          )
+
+          .innerJoin(
+            'student.user',
+            'studentUser',
+          )
+
+          .where(
+            'studentUser.id = :userId',
+            {
+              userId,
+            },
+          )
+
+          .andWhere(
+            'student.active = :active',
+            {
+              active: true,
+            },
+          )
+
+          .getOne();
+
+
+      /*
+       * =================================
+       * PERSONAS A CARGO
+       * =================================
+       *
+       * Ejemplo:
+       *
+       * User Juan
+       *      ↓
+       * Tomás
+       * Lucas
+       */
+
+      const dependents =
+        await this.repo
+          .createQueryBuilder(
+            'student',
+          )
+
+          .leftJoinAndSelect(
+            'student.category',
+            'category',
+          )
+
+          .innerJoin(
+            'student.responsibles',
+            'responsible',
+          )
+
+          .where(
+            'responsible.id = :userId',
+            {
+              userId,
+            },
+          )
+
+          .andWhere(
+            'student.active = :active',
+            {
+              active: true,
+            },
+          )
+
+          .orderBy(
+            'student.last_name',
+            'ASC',
+          )
+
+          .addOrderBy(
+            'student.name',
+            'ASC',
+          )
+
+          .getMany();
+
+
+      return {
+
+        self,
+
+        dependents,
+
+      };
 
     } catch (error: any) {
 

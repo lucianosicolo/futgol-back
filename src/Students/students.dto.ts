@@ -1,5 +1,10 @@
-import { CategoryDto } from "src/Categories/category.dto";
-import { UserDto } from "src/Users/users.dto";
+import {
+  CategoryDto,
+} from 'src/Categories/category.dto';
+
+import {
+  UserDto,
+} from 'src/Users/users.dto';
 
 
 export class StudentDto {
@@ -21,7 +26,14 @@ export class StudentDto {
   active: boolean;
 
   category: CategoryDto;
-  responsibles: UserDto[];
 
+  /*
+   * Opcional.
+   * Si este alumno tiene una
+   * cuenta propia en FUTGOL.
+   */
+  user_id?: string;
+
+  responsibles: UserDto[];
 
 }

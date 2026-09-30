@@ -22,12 +22,21 @@ import {
 } from './users.service';
 import { UserDto } from './users.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
+import { UserRole } from './user-role.enum';
+import { RolesGuard } from 'src/Auth/roles.guard';
+import { Roles } from 'src/Auth/roles.decorator';
 
 
 
 
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(
+  JwtAuthGuard,
+  RolesGuard,
+)
+@Roles(
+  UserRole.ADMIN,
+)
 export class UsersController {
 
 
@@ -50,7 +59,7 @@ export class UsersController {
     email: string,
 
     @Query('role')
-    role: string,
+    role: UserRole,
 
     @Query('active')
     active: string,

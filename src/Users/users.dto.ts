@@ -1,4 +1,11 @@
-import { StudentDto } from "src/Students/students.dto";
+import {
+  StudentDto,
+} from 'src/Students/students.dto';
+
+import {
+  UserRole,
+} from './user-role.enum';
+
 
 export class UserDto {
 
@@ -14,9 +21,17 @@ export class UserDto {
 
   phone: string;
 
-  role: string;
+  role: UserRole;
 
   active: boolean;
-  students: StudentDto[];
+
+  /*
+   * Alumnos que están
+   * a cargo de este usuario.
+   *
+   * Para crear el usuario alcanza
+   * con mandar el id de cada uno.
+   */
+  students?: StudentDto[];
 
 }

@@ -4,8 +4,10 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { UserRole } from './user-role.enum';
 
 
 @Entity('users')
@@ -52,31 +54,37 @@ export class UserEntity {
   phone: string;
 
 
-  @Column('varchar', {
-    length: 30,
+  @Column({
+    type: 'enum',
+    enum: UserRole,
     nullable: false,
   })
-  role: string;
+  role: UserRole;
 
 
   @Column('bool', {
     default: true,
   })
   active: boolean;
-@ManyToMany(
+  @ManyToMany(
+    () => StudentEntity,
+    (student) => student.responsibles,
+  )
+  @JoinTable({
+    name: 'responsible_students',
+    joinColumn: {
+      name: 'responsible_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'student_id',
+      referencedColumnName: 'id',
+    },
+  })
+  students: StudentEntity[];
+@OneToOne(
   () => StudentEntity,
-  (student) => student.responsibles,
+  (student) => student.user,
 )
-@JoinTable({
-  name: 'responsible_students',
-  joinColumn: {
-    name: 'responsible_id',
-    referencedColumnName: 'id',
-  },
-  inverseJoinColumn: {
-    name: 'student_id',
-    referencedColumnName: 'id',
-  },
-})
-students: StudentEntity[];
+student: StudentEntity | null;
 }

@@ -171,7 +171,16 @@ export class CategoriesService {
 
       }
 
+if (
+  type.monthly_fee !== undefined &&
+  Number(type.monthly_fee) < 0
+) {
 
+  throw new BadRequestException(
+    'Monthly fee cannot be negative',
+  );
+
+}
       const newType =
         this.repo.create({
 
@@ -274,7 +283,16 @@ export class CategoriesService {
 
       }
 
+if (
+  type.monthly_fee !== undefined &&
+  Number(type.monthly_fee) < 0
+) {
 
+  throw new BadRequestException(
+    'Monthly fee cannot be negative',
+  );
+
+}
       const mergeEntity =
         this.repo.merge(
           entity,

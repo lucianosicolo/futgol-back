@@ -18,7 +18,12 @@ export class CategoryEntity {
     unique: true,
   })
   name: string;
-
+ @Column('decimal', {
+    precision: 10,
+    scale: 2,
+    default: 0,
+  })
+  monthly_fee: number;
 
   @Column('bool', {
     default: true,

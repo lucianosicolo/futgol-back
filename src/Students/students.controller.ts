@@ -25,34 +25,47 @@ import {
 import {
   StudentDto,
 } from './students.dto';
-import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
-import { UserRole } from 'src/Users/user-role.enum';
-import { Roles } from 'src/Auth/roles.decorator';
-import { RolesGuard } from 'src/Auth/roles.guard';
+
+import {
+  JwtAuthGuard,
+} from 'src/Auth/jwt-auth.guard';
+
+import {
+  UserRole,
+} from 'src/Users/user-role.enum';
+
+import {
+  Roles,
+} from 'src/Auth/roles.decorator';
+
+import {
+  RolesGuard,
+} from 'src/Auth/roles.guard';
 
 
 @Controller('students')
-@UseGuards(JwtAuthGuard)
+@UseGuards(
+  JwtAuthGuard,
+  RolesGuard,
+)
 export class StudentsController {
 
 
   constructor(
-    private service:
+    private readonly service:
       StudentsService,
   ) {}
 
 
-  //! GET ALL --------------------------------------------------------->
+  /* ============================= */
+  /* GET ALL                       */
+  /* ============================= */
 
   @Get()
- @UseGuards(
-  JwtAuthGuard,
-  RolesGuard,
-)
-@Roles(
-  UserRole.ADMIN,
-  UserRole.TEACHER,
-)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.TEACHER,
+  )
   async getAll(
 
     @Query('name')
@@ -100,49 +113,64 @@ export class StudentsController {
 
       result,
 
-      msg: 'Approved',
+      msg:
+        'Approved',
 
     });
 
   }
 
-@Get('my')
-@Roles(
-  UserRole.RESPONSIBLE,
-)
-async getMyStudents(
 
-  @Req()
-  req: any,
+  /* ============================= */
+  /* MIS ALUMNOS                   */
+  /* ============================= */
 
-  @Res()
-  res: Response,
+  @Get('my')
+  @Roles(
+    UserRole.RESPONSIBLE,
+  )
+  async getMyStudents(
 
-) {
+    @Req()
+    req: any,
 
-  const result =
-    await this.service.getMyStudents(
-      req.user.id,
-    );
+    @Res()
+    res: Response,
+
+  ) {
+
+    const result =
+      await this.service
+        .getMyStudents(
+          req.user.id,
+        );
 
 
-  res.status(
-    HttpStatus.OK,
-  ).json({
+    res.status(
+      HttpStatus.OK,
+    ).json({
 
-    ok: true,
+      ok: true,
 
-    result,
+      result,
 
-    msg: 'Approved',
+      msg:
+        'Approved',
 
-  });
+    });
 
-}
-  //! GET ONE --------------------------------------------------------->
+  }
+
+
+  /* ============================= */
+  /* GET ONE                       */
+  /* ============================= */
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.TEACHER,
+  )
   async getOne(
 
     @Param(
@@ -157,9 +185,10 @@ async getMyStudents(
   ) {
 
     const result =
-      await this.service.getOne(
-        id,
-      );
+      await this.service
+        .getOne(
+          id,
+        );
 
 
     res.status(
@@ -170,17 +199,22 @@ async getMyStudents(
 
       result,
 
-      msg: 'Approved',
+      msg:
+        'Approved',
 
     });
 
   }
 
 
-  //! INSERT ---------------------------------------------------------->
+  /* ============================= */
+  /* CREAR                         */
+  /* ============================= */
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @Roles(
+    UserRole.ADMIN,
+  )
   async insert(
 
     @Body()
@@ -192,9 +226,10 @@ async getMyStudents(
   ) {
 
     const result =
-      await this.service.insert(
-        type,
-      );
+      await this.service
+        .insert(
+          type,
+        );
 
 
     res.status(
@@ -205,17 +240,22 @@ async getMyStudents(
 
       result,
 
-      msg: 'Approved',
+      msg:
+        'Approved',
 
     });
 
   }
 
 
-  //! UPDATE ---------------------------------------------------------->
+  /* ============================= */
+  /* EDITAR                        */
+  /* ============================= */
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
+  @Roles(
+    UserRole.ADMIN,
+  )
   async update(
 
     @Param(
@@ -225,7 +265,8 @@ async getMyStudents(
     id: string,
 
     @Body()
-    type: Partial<StudentDto>,
+    type:
+      Partial<StudentDto>,
 
     @Res()
     res: Response,
@@ -233,10 +274,11 @@ async getMyStudents(
   ) {
 
     const result =
-      await this.service.update(
-        id,
-        type,
-      );
+      await this.service
+        .update(
+          id,
+          type,
+        );
 
 
     res.status(
@@ -247,17 +289,22 @@ async getMyStudents(
 
       result,
 
-      msg: 'Approved',
+      msg:
+        'Approved',
 
     });
 
   }
 
 
-  //! DELETE ---------------------------------------------------------->
+  /* ============================= */
+  /* ELIMINAR                      */
+  /* ============================= */
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @Roles(
+    UserRole.ADMIN,
+  )
   async delete(
 
     @Param(
@@ -272,9 +319,10 @@ async getMyStudents(
   ) {
 
     const result =
-      await this.service.delete(
-        id,
-      );
+      await this.service
+        .delete(
+          id,
+        );
 
 
     res.status(
@@ -285,7 +333,8 @@ async getMyStudents(
 
       result,
 
-      msg: 'Approved',
+      msg:
+        'Approved',
 
     });
 

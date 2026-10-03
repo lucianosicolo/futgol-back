@@ -133,9 +133,11 @@ export class CategoriesController {
 
   //! INSERT ---------------------------------------------------------->
 
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async insert(
+@Post()
+@Roles(
+  UserRole.ADMIN,
+)
+async insert(
 
     @Body()
     type: CategoryDto,
@@ -168,9 +170,11 @@ export class CategoriesController {
 
   //! UPDATE ---------------------------------------------------------->
 
-  @Put(':id')
-  @UseGuards(JwtAuthGuard)
-  async update(
+@Put(':id')
+@Roles(
+  UserRole.ADMIN,
+)
+async update(
 
     @Param(
       'id',
@@ -209,9 +213,10 @@ export class CategoriesController {
 
 
   //! DELETE ---------------------------------------------------------->
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+@Delete(':id')
+@Roles(
+  UserRole.ADMIN,
+)
   async delete(
 
     @Param(

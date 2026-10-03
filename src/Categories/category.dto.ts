@@ -5,5 +5,5 @@ export class CategoryDto {
   name: string;
 
   active: boolean;
-
+monthly_fee: number;
 }

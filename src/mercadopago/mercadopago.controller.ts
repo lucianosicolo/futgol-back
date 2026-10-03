@@ -374,7 +374,6 @@ export class MercadoPagoController {
 
 @Roles(
   UserRole.ADMIN,
-  UserRole.TEACHER,
   UserRole.RESPONSIBLE,
 )
 

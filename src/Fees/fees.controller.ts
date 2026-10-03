@@ -38,7 +38,6 @@ import { RolesGuard } from 'src/Auth/roles.guard';
 )
 @Roles(
   UserRole.ADMIN,
-  UserRole.TEACHER,
 )
 export class FeesController {
 
@@ -254,7 +253,51 @@ async getMyFees(
 
   }
 
+//! GENERATE PERIOD -------------------------------------------------->
 
+@Post('generate-period')
+async generatePeriod(
+
+  @Body()
+  body: {
+
+    period: string;
+
+    dueDate: string;
+
+  },
+
+  @Res()
+  res: Response,
+
+) {
+
+  const result =
+    await this.service
+      .generatePeriod(
+
+        body.period,
+
+        body.dueDate,
+
+      );
+
+
+  res.status(
+    HttpStatus.OK,
+  ).json({
+
+    ok:
+      true,
+
+    result,
+
+    msg:
+      'Fees generated successfully',
+
+  });
+
+}
   //! DELETE ---------------------------------------------------------->
 
   @Delete(':id')

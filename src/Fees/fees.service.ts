@@ -762,5 +762,214 @@ async getMyFees(
     }
 
   }
+//! GENERATE PERIOD -------------------------------------------------->
 
+async generatePeriod(
+
+  period: string,
+
+  dueDate: string,
+
+) {
+
+  if (
+    !period ||
+    !dueDate
+  ) {
+
+    throw new BadRequestException(
+      'Period and due date are required',
+    );
+
+  }
+
+
+  /*
+   * Traemos solamente
+   * alumnos activos.
+   */
+  const students =
+    await this.studentsService
+      .getAll(
+
+        undefined,
+
+        undefined,
+
+        undefined,
+
+        true,
+
+      );
+
+
+  /*
+   * Antes de crear nada,
+   * verificamos que todos tengan
+   * categoría y precio configurado.
+   */
+  const categoriesWithoutPrice =
+    students
+      .filter(
+        student =>
+          !student.category ||
+          Number(
+            student.category.monthly_fee,
+          ) <= 0,
+      )
+      .map(
+        student =>
+          student.category?.name ??
+          'Sin categoría',
+      )
+      .filter(
+        (
+          category,
+          index,
+          array,
+        ) =>
+          array.indexOf(
+            category,
+          ) === index,
+      );
+
+
+  if (
+    categoriesWithoutPrice.length > 0
+  ) {
+
+    throw new BadRequestException({
+
+      message:
+        'There are categories without a monthly fee',
+
+      categories:
+        categoriesWithoutPrice,
+
+    });
+
+  }
+
+
+  const created:
+    FeeEntity[] = [];
+
+  const skipped:
+    string[] = [];
+
+
+  for (
+    const student of students
+  ) {
+
+    /*
+     * Si ya tiene cuota
+     * para ese período,
+     * no hacemos otra.
+     */
+    const existing =
+      await this.repo.findOne({
+
+        where: {
+
+          student: {
+            id:
+              student.id,
+          },
+
+          period,
+
+        },
+
+      });
+
+
+    if (existing) {
+
+      skipped.push(
+        student.id,
+      );
+
+      continue;
+
+    }
+
+
+    /*
+     * getOne nos devuelve
+     * la entidad real del alumno.
+     */
+    const studentEntity =
+      await this.studentsService
+        .getOne(
+          student.id,
+        );
+
+
+    const amount =
+      Number(
+        student.category!
+          .monthly_fee,
+      );
+
+
+    const fee =
+      this.repo.create({
+
+        student:
+          studentEntity,
+
+        period,
+
+        amount,
+
+        due_date:
+          dueDate,
+
+        status:
+          'due',
+
+        paid_at:
+          null,
+
+        active:
+          true,
+
+      });
+
+
+    const saved =
+      await this.repo.save(
+        fee,
+      );
+
+
+    created.push(
+      saved,
+    );
+
+  }
+
+
+  return {
+
+    period,
+
+    dueDate,
+
+    totalStudents:
+      students.length,
+
+    created:
+      created.length,
+
+    skipped:
+      skipped.length,
+
+    fees:
+      created,
+
+  };
+
+}
 }

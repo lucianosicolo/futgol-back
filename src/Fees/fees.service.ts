@@ -158,13 +158,14 @@ async getOneForUser(
 
 
   /*
-   * Admin y profesor pueden
+   * Solamente el administrador puede
    * trabajar con cualquier cuota.
+   *
+   * El profesor no administra cuotas.
    */
 
   if (
-    role === UserRole.ADMIN ||
-    role === UserRole.TEACHER
+    role === UserRole.ADMIN
   ) {
 
     return await this.getOne(

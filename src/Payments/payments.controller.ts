@@ -11,7 +11,6 @@ import { UserRole } from "src/Users/user-role.enum";
 )
 @Roles(
   UserRole.ADMIN,
-  UserRole.TEACHER,
 )
 export class PaymentsController {
 }

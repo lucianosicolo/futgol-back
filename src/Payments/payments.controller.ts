@@ -1,10 +1,13 @@
 import {
+  Body,
   Controller,
   Get,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -49,6 +52,64 @@ export class PaymentsController {
     private readonly service:
       PaymentsService,
   ) {}
+
+
+  /* ============================= */
+  /* REGISTRAR PAGO MANUAL         */
+  /* ============================= */
+
+  @Post('manual')
+  async createManualPayment(
+
+    @Req()
+    req:
+      any,
+
+    @Body()
+    body: {
+
+      feeId:
+        string;
+
+      paymentMethod:
+        'cash' | 'transfer';
+
+    },
+
+    @Res()
+    res:
+      Response,
+
+  ) {
+
+    const result =
+      await this.service
+        .saveManualPayment(
+
+          body.feeId,
+
+          req.user.id,
+
+          body.paymentMethod,
+
+        );
+
+
+    res.status(
+      HttpStatus.CREATED,
+    ).json({
+
+      ok:
+        true,
+
+      result,
+
+      msg:
+        'Manual payment registered',
+
+    });
+
+  }
 
 
   /* ============================= */

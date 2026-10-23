@@ -35,6 +35,44 @@ describe(
     };
 
 
+    const feeRepo = {
+
+      findOne:
+        jest.fn(),
+
+      save:
+        jest.fn(),
+
+    };
+
+
+    const paymentRepo = {
+
+      create:
+        jest.fn(),
+
+      save:
+        jest.fn(),
+
+    };
+
+
+    const manager = {
+
+      getRepository:
+        jest.fn(),
+
+    };
+
+
+    const dataSource = {
+
+      transaction:
+        jest.fn(),
+
+    };
+
+
     let service:
       PaymentsService;
 
@@ -51,6 +89,8 @@ describe(
             repo as any,
 
             feesService as any,
+
+            dataSource as any,
 
           );
 
@@ -76,6 +116,162 @@ describe(
             async value =>
               value,
           );
+
+
+        paymentRepo
+          .create
+          .mockImplementation(
+            value =>
+              value,
+          );
+
+
+        paymentRepo
+          .save
+          .mockImplementation(
+            async value => ({
+              id:
+                'payment-1',
+              ...value,
+            }),
+          );
+
+
+        feeRepo
+          .save
+          .mockImplementation(
+            async value =>
+              value,
+          );
+
+
+        manager
+          .getRepository
+          .mockReturnValueOnce(
+            feeRepo,
+          )
+          .mockReturnValueOnce(
+            paymentRepo,
+          );
+
+
+        dataSource
+          .transaction
+          .mockImplementation(
+            async callback =>
+              callback(
+                manager,
+              ),
+          );
+
+      },
+    );
+
+
+    it(
+      'registers a manual payment and marks the fee paid in one transaction',
+      async () => {
+
+        feeRepo
+          .findOne
+          .mockResolvedValue({
+
+            id:
+              'fee-1',
+
+            amount:
+              70000,
+
+            status:
+              'due',
+
+            active:
+              true,
+
+            paid_at:
+              null,
+
+            student: {
+
+              id:
+                'student-1',
+
+            },
+
+          });
+
+
+        const result =
+          await service
+            .saveManualPayment(
+
+              'fee-1',
+
+              'admin-1',
+
+              'cash',
+
+            );
+
+
+        expect(
+          paymentRepo.save,
+        ).toHaveBeenCalledWith(
+
+          expect.objectContaining({
+
+            source:
+              'manual',
+
+            amount:
+              70000,
+
+            status:
+              'approved',
+
+            payment_method:
+              'cash',
+
+            registered_by:
+              expect.objectContaining({
+
+                id:
+                  'admin-1',
+
+              }),
+
+          }),
+
+        );
+
+
+        expect(
+          feeRepo.save,
+        ).toHaveBeenCalledWith(
+
+          expect.objectContaining({
+
+            id:
+              'fee-1',
+
+            status:
+              'paid',
+
+            paid_at:
+              expect.any(
+                Date,
+              ),
+
+          }),
+
+        );
+
+
+        expect(
+          result.source,
+        ).toBe(
+          'manual',
+        );
 
       },
     );

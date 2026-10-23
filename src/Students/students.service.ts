@@ -257,6 +257,15 @@ export class StudentsService {
           type.category.id,
         );
 
+
+      if (!category.active) {
+
+        throw new BadRequestException(
+          'Category is inactive',
+        );
+
+      }
+
       /*
        * El alumno puede tener
        * una cuenta propia asociada.

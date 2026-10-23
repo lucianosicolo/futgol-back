@@ -5,6 +5,7 @@ import {
   Get,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -137,6 +138,12 @@ export class CalendarEventsController {
 
   }
 
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() body: CalendarEventCreateDto, @Res() res: Response) {
+    const result = await this.service.update(id, body);
+    res.status(HttpStatus.OK).json({ ok: true, result, msg: 'Calendar event updated' });
+  }
 
   @Delete(':id')
   async delete(

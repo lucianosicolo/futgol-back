@@ -11,16 +11,21 @@ import {
 } from '@nestjs/typeorm';
 
 import {
+  DataSource,
   Repository,
 } from 'typeorm';
 
 import {
   StudentEntity,
 } from 'src/Students/students.entity';
-import { AsistenciaEntity } from './asistencia.entity';
-import { AsistenciaDto } from './asistencia.dto';
 
+import {
+  AsistenciaEntity,
+} from './asistencia.entity';
 
+import {
+  AsistenciaDto,
+} from './asistencia.dto';
 
 
 @Injectable()
@@ -42,7 +47,71 @@ export class AsistenciaService {
     private readonly studentsRepo:
       Repository<StudentEntity>,
 
+
+    private readonly dataSource:
+      DataSource,
+
   ) {}
+
+
+  private validateDate(
+    date:
+      string,
+  ):
+    void {
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/
+        .test(
+          date,
+        )
+    ) {
+
+      throw new BadRequestException(
+        'Date must use YYYY-MM-DD format',
+      );
+
+    }
+
+
+    const [
+      year,
+      month,
+      day,
+    ] =
+      date
+        .split('-')
+        .map(
+          Number,
+        );
+
+
+    const parsed =
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day,
+        ),
+      );
+
+
+    if (
+      parsed.getUTCFullYear() !==
+        year ||
+      parsed.getUTCMonth() !==
+        month - 1 ||
+      parsed.getUTCDate() !==
+        day
+    ) {
+
+      throw new BadRequestException(
+        'Invalid date',
+      );
+
+    }
+
+  }
 
 
   /* ============================= */
@@ -71,176 +140,248 @@ export class AsistenciaService {
     }
 
 
-    try {
+    const studentIds =
+      new Set<string>();
+
+    let batchDate:
+      string | null =
+      null;
 
 
-      const result:
-        AsistenciaEntity[] =
-        [];
+    /*
+     * Validamos el lote completo antes
+     * de tocar la base.
+     */
+    for (
+      const attendance
+      of attendances
+    ) {
 
-
-      for (
-        const attendance
-        of attendances
+      if (
+        !attendance.student_id
       ) {
 
-
-        /* ============================= */
-        /* VALIDACIONES                  */
-        /* ============================= */
-
-        if (
-          !attendance.student_id
-        ) {
-
-          throw new BadRequestException(
-            'Student id is required',
-          );
-
-        }
-
-
-        if (
-          !attendance.date
-        ) {
-
-          throw new BadRequestException(
-            'Date is required',
-          );
-
-        }
-
-
-        if (
-          typeof attendance.present !==
-          'boolean'
-        ) {
-
-          throw new BadRequestException(
-            'Present must be boolean',
-          );
-
-        }
-
-
-        /* ============================= */
-        /* BUSCAR ALUMNO                 */
-        /* ============================= */
-
-        const student =
-          await this.studentsRepo
-            .findOne({
-
-              where: {
-
-                id:
-                  attendance.student_id,
-
-              },
-
-            });
-
-
-        if (!student) {
-
-          throw new NotFoundException(
-            'Student not found',
-          );
-
-        }
-
-
-        /* ============================= */
-        /* BUSCAR SI YA EXISTE           */
-        /* ============================= */
-
-        const existing =
-          await this.repo
-            .findOne({
-
-              where: {
-
-                student: {
-
-                  id:
-                    attendance.student_id,
-
-                },
-
-                date:
-                  attendance.date,
-
-              },
-
-              relations: {
-
-                student:
-                  true,
-
-              },
-
-            });
-
-
-        /* ============================= */
-        /* ACTUALIZAR                    */
-        /* ============================= */
-
-        if (existing) {
-
-          existing.present =
-            attendance.present;
-
-
-          const updated =
-            await this.repo.save(
-              existing,
-            );
-
-
-          result.push(
-            updated,
-          );
-
-
-          continue;
-
-        }
-
-
-        /* ============================= */
-        /* CREAR                         */
-        /* ============================= */
-
-        const newAttendance =
-          this.repo.create({
-
-            student,
-
-            date:
-              attendance.date,
-
-            present:
-              attendance.present,
-
-          });
-
-
-        const saved =
-          await this.repo.save(
-            newAttendance,
-          );
-
-
-        result.push(
-          saved,
+        throw new BadRequestException(
+          'Student id is required',
         );
 
       }
 
 
-      return result;
+      if (
+        !attendance.date
+      ) {
 
+        throw new BadRequestException(
+          'Date is required',
+        );
+
+      }
+
+
+      this.validateDate(
+        attendance.date,
+      );
+
+
+      if (
+        typeof attendance.present !==
+        'boolean'
+      ) {
+
+        throw new BadRequestException(
+          'Present must be boolean',
+        );
+
+      }
+
+
+      if (
+        batchDate ===
+        null
+      ) {
+
+        batchDate =
+          attendance.date;
+
+      } else if (
+        attendance.date !==
+        batchDate
+      ) {
+
+        throw new BadRequestException(
+          'All attendances in the batch must use the same date',
+        );
+
+      }
+
+
+      if (
+        studentIds.has(
+          attendance.student_id,
+        )
+      ) {
+
+        throw new BadRequestException(
+          'Duplicate student in attendance batch',
+        );
+
+      }
+
+
+      studentIds.add(
+        attendance.student_id,
+      );
+
+    }
+
+
+    try {
+
+      /*
+       * Todo el lote se guarda dentro de
+       * una sola transacción.
+       *
+       * Si falla un alumno, no queda
+       * asistencia parcial del día.
+       */
+      return await this.dataSource
+        .transaction(
+
+          async manager => {
+
+            const attendanceRepo =
+              manager.getRepository(
+                AsistenciaEntity,
+              );
+
+            const studentRepo =
+              manager.getRepository(
+                StudentEntity,
+              );
+
+
+            const result:
+              AsistenciaEntity[] =
+              [];
+
+
+            for (
+              const attendance
+              of attendances
+            ) {
+
+              /*
+               * Solo un alumno activo puede
+               * recibir una asistencia nueva.
+               */
+              const student =
+                await studentRepo
+                  .findOne({
+
+                    where: {
+
+                      id:
+                        attendance.student_id,
+
+                      active:
+                        true,
+
+                    },
+
+                  });
+
+
+              if (!student) {
+
+                throw new NotFoundException(
+                  'Active student not found',
+                );
+
+              }
+
+
+              const existing =
+                await attendanceRepo
+                  .findOne({
+
+                    where: {
+
+                      student: {
+
+                        id:
+                          attendance.student_id,
+
+                      },
+
+                      date:
+                        attendance.date,
+
+                    },
+
+                    relations: {
+
+                      student:
+                        true,
+
+                    },
+
+                  });
+
+
+              if (existing) {
+
+                existing.present =
+                  attendance.present;
+
+
+                result.push(
+
+                  await attendanceRepo
+                    .save(
+                      existing,
+                    ),
+
+                );
+
+
+                continue;
+
+              }
+
+
+              const newAttendance =
+                attendanceRepo
+                  .create({
+
+                    student,
+
+                    date:
+                      attendance.date,
+
+                    present:
+                      attendance.present,
+
+                  });
+
+
+              result.push(
+
+                await attendanceRepo
+                  .save(
+                    newAttendance,
+                  ),
+
+              );
+
+            }
+
+
+            return result;
+
+          },
+
+        );
 
     } catch (
       error: any
@@ -263,13 +404,13 @@ export class AsistenciaService {
   }
 
 
-
   /* ============================= */
   /* BUSCAR POR FECHA              */
   /* ============================= */
 
   async getByDate(
-    date: string,
+    date:
+      string,
   ): Promise<
     AsistenciaEntity[]
   > {
@@ -282,6 +423,11 @@ export class AsistenciaService {
       );
 
     }
+
+
+    this.validateDate(
+      date,
+    );
 
 
     try {
@@ -344,13 +490,13 @@ export class AsistenciaService {
   }
 
 
-
   /* ============================= */
   /* HISTORIAL DE ALUMNO           */
   /* ============================= */
 
   async getByStudent(
-    studentId: string,
+    studentId:
+      string,
   ): Promise<
     AsistenciaEntity[]
   > {
@@ -391,6 +537,10 @@ export class AsistenciaService {
       }
 
 
+      /*
+       * El historial se conserva aunque
+       * el alumno hoy esté inactivo.
+       */
       return await this.repo.find({
 
         where: {

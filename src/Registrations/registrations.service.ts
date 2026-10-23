@@ -9,6 +9,7 @@ import {
 
 import {
   DataSource,
+  In,
   Repository,
 } from 'typeorm';
 
@@ -504,6 +505,76 @@ export class RegistrationsService {
             }
 
 
+            let dependents:
+              StudentEntity[] =
+              [];
+
+
+            if (
+              type.access_mode ===
+                'self' &&
+              (
+                type.dependent_student_ids
+                  ?.length ??
+                0
+              ) > 0
+            ) {
+
+              const dependentIds =
+                [
+                  ...new Set(
+                    type.dependent_student_ids,
+                  ),
+                ]
+                  .filter(
+                    id =>
+                      !!id,
+                  );
+
+
+              if (
+                dependentIds.length !==
+                type.dependent_student_ids!
+                  .length
+              ) {
+
+                throw new BadRequestException(
+                  'Invalid dependent students',
+                );
+
+              }
+
+
+              dependents =
+                await studentRepo.find({
+
+                  where: {
+                    id:
+                      In(
+                        dependentIds,
+                      ),
+
+                    active:
+                      true,
+                  },
+
+                });
+
+
+              if (
+                dependents.length !==
+                  dependentIds.length
+              ) {
+
+                throw new NotFoundException(
+                  'One or more dependent students were not found',
+                );
+
+              }
+
+            }
+
+
             const student =
               studentRepo.create({
 
@@ -540,6 +611,22 @@ export class RegistrationsService {
               await studentRepo.save(
                 student,
               );
+
+
+            if (
+              directUser &&
+              dependents.length > 0
+            ) {
+
+              directUser.students =
+                dependents;
+
+
+              await userRepo.save(
+                directUser,
+              );
+
+            }
 
 
             if (responsible) {

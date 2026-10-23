@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 
 import {
@@ -256,9 +255,10 @@ describe(
 
           ]),
 
-        ).rejects.toBeInstanceOf(
-          NotFoundException,
-        );
+        ).rejects.toMatchObject({
+          status:
+            404,
+        });
 
 
         expect(

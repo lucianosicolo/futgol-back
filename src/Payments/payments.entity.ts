@@ -11,101 +11,171 @@ import {
   FeeEntity,
 } from 'src/Fees/fees.entity';
 
+import {
+  UserEntity,
+} from 'src/Users/users.entity';
+
 
 @Entity('payments')
 export class PaymentEntity {
 
 
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id:
+    string;
 
 
   @ManyToOne(
     () => FeeEntity,
     {
-      nullable: false,
+      nullable:
+        false,
     },
   )
   @JoinColumn({
-    name: 'fee_id',
+    name:
+      'fee_id',
   })
-  fee: FeeEntity;
+  fee:
+    FeeEntity;
 
 
   @Column('varchar', {
-    length: 100,
-    nullable: false,
-    unique: true,
+    length:
+      30,
+    nullable:
+      false,
+    default:
+      'mercadopago',
   })
-  mercado_pago_payment_id: string;
+  source:
+    'mercadopago' | 'manual';
 
 
   @Column('varchar', {
-    length: 255,
-    nullable: true,
+    length:
+      100,
+    nullable:
+      true,
+    unique:
+      true,
   })
-  external_reference: string | null;
+  mercado_pago_payment_id:
+    string | null;
+
+
+  @ManyToOne(
+    () => UserEntity,
+    {
+      nullable:
+        true,
+      onDelete:
+        'SET NULL',
+    },
+  )
+  @JoinColumn({
+    name:
+      'registered_by_user_id',
+  })
+  registered_by:
+    UserEntity | null;
+
+
+  @Column('varchar', {
+    length:
+      255,
+    nullable:
+      true,
+  })
+  external_reference:
+    string | null;
 
 
   @Column('decimal', {
-    precision: 12,
-    scale: 2,
-    nullable: false,
+    precision:
+      12,
+    scale:
+      2,
+    nullable:
+      false,
   })
-  amount: number;
+  amount:
+    number;
 
 
   @Column('varchar', {
-    length: 10,
-    nullable: false,
-    default: 'ARS',
+    length:
+      10,
+    nullable:
+      false,
+    default:
+      'ARS',
   })
-  currency: string;
+  currency:
+    string;
 
 
   @Column('varchar', {
-    length: 50,
-    nullable: false,
+    length:
+      50,
+    nullable:
+      false,
   })
-  status: string;
+  status:
+    string;
 
 
   @Column('varchar', {
-    length: 100,
-    nullable: true,
+    length:
+      100,
+    nullable:
+      true,
   })
-  status_detail: string | null;
+  status_detail:
+    string | null;
 
 
   @Column('varchar', {
-    length: 100,
-    nullable: true,
+    length:
+      100,
+    nullable:
+      true,
   })
-  payment_method: string | null;
+  payment_method:
+    string | null;
 
 
   @Column('varchar', {
-    length: 100,
-    nullable: true,
+    length:
+      100,
+    nullable:
+      true,
   })
-  payment_type: string | null;
+  payment_type:
+    string | null;
 
 
   @Column('datetime', {
-    nullable: true,
+    nullable:
+      true,
   })
-  date_approved: Date | null;
+  date_approved:
+    Date | null;
 
 
   @Column('json', {
-    nullable: true,
+    nullable:
+      true,
   })
-  raw_response: any;
+  raw_response:
+    any;
 
 
   @CreateDateColumn({
-    type: 'datetime',
+    type:
+      'datetime',
   })
-  created_at: Date;
+  created_at:
+    Date;
 
 }

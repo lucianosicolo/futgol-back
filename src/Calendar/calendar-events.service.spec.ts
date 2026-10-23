@@ -250,6 +250,45 @@ describe(
       expect(repo.save).not.toHaveBeenCalled();
     });
 
+
+    it('changes the assigned category and preserves opponent for matches', async () => {
+      repo.findOne.mockResolvedValue({
+        id: 'event-1', active: true,
+        created_by: { id: 'teacher-1', name: 'Profe', last_name: 'Uno' },
+      });
+      categoriesRepo.findOne.mockResolvedValue({
+        id: 'new-category', name: 'Sub 15', active: true,
+      });
+      const result = await service.update('event-1', {
+        title: 'Saturday match', type: 'match', date: '2026-10-24',
+        time: '10:00', duration_minutes: 90,
+        categoryId: 'new-category', opponent: 'Racing',
+      });
+      expect(result.category.id).toBe('new-category');
+      expect(result.opponent).toBe('Racing');
+      expect(categoriesRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'new-category', active: true },
+      });
+    });
+
+    it('rejects inactive categories on update', async () => {
+      repo.findOne.mockResolvedValue({ id: 'event-1', active: true });
+      categoriesRepo.findOne.mockResolvedValue(null);
+      await expect(service.update('event-1', {
+        title: 'Match', type: 'match', date: '2026-10-24',
+        time: '18:00', duration_minutes: 90, categoryId: 'inactive',
+      })).rejects.toThrow('Active category not found');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects excessive duration on update', async () => {
+      await expect(service.update('event-1', {
+        title: 'Match', type: 'match', date: '2026-10-24',
+        time: '18:00', duration_minutes: 601,
+      })).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
     it(
       'soft deletes an active event',
       async () => {

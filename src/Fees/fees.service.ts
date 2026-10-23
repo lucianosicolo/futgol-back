@@ -13,6 +13,7 @@ import {
 } from '@nestjs/typeorm';
 
 import {
+  DataSource,
   FindManyOptions,
   FindOptionsWhere,
   Like,
@@ -30,7 +31,14 @@ import {
 import {
   StudentsService,
 } from 'src/Students/students.service';
-import { UserRole } from 'src/Users/user-role.enum';
+
+import {
+  StudentEntity,
+} from 'src/Students/students.entity';
+
+import {
+  UserRole,
+} from 'src/Users/user-role.enum';
 
 
 @Injectable()
@@ -44,6 +52,9 @@ export class FeesService {
 
     private readonly studentsService:
       StudentsService,
+
+    private readonly dataSource:
+      DataSource,
 
   ) {}
 
@@ -765,212 +776,415 @@ async getMyFees(
   }
 //! GENERATE PERIOD -------------------------------------------------->
 
-async generatePeriod(
+  private parsePeriod(
+    period:
+      string,
+  ): {
+    monthIndex:
+      number;
+    year:
+      number;
+  } {
 
-  period: string,
-
-  dueDate: string,
-
-) {
-
-  if (
-    !period ||
-    !dueDate
-  ) {
-
-    throw new BadRequestException(
-      'Period and due date are required',
-    );
-
-  }
+    const months = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
 
 
-  /*
-   * Traemos solamente
-   * alumnos activos.
-   */
-  const students =
-    await this.studentsService
-      .getAll(
+    const [
+      monthName,
+      yearText,
+    ] =
+      period
+        .trim()
+        .split(/\s+/);
 
-        undefined,
 
-        undefined,
+    const monthIndex =
+      months.indexOf(
+        monthName,
+      );
 
-        undefined,
-
-        true,
-
+    const year =
+      Number(
+        yearText,
       );
 
 
-  /*
-   * Antes de crear nada,
-   * verificamos que todos tengan
-   * categoría y precio configurado.
-   */
-  const categoriesWithoutPrice =
-    students
-      .filter(
-        student =>
-          !student.category ||
-          Number(
-            student.category.monthly_fee,
-          ) <= 0,
-      )
-      .map(
-        student =>
-          student.category?.name ??
-          'Sin categoría',
-      )
-      .filter(
-        (
-          category,
-          index,
-          array,
-        ) =>
-          array.indexOf(
-            category,
-          ) === index,
+    if (
+      monthIndex === -1 ||
+      !Number.isInteger(
+        year,
+      ) ||
+      year < 2000 ||
+      year > 2100 ||
+      period.trim() !==
+        `${monthName} ${year}`
+    ) {
+
+      throw new BadRequestException(
+        'Invalid period format',
       );
-
-
-  if (
-    categoriesWithoutPrice.length > 0
-  ) {
-
-    throw new BadRequestException({
-
-      message:
-        'There are categories without a monthly fee',
-
-      categories:
-        categoriesWithoutPrice,
-
-    });
-
-  }
-
-
-  const created:
-    FeeEntity[] = [];
-
-  const skipped:
-    string[] = [];
-
-
-  for (
-    const student of students
-  ) {
-
-    /*
-     * Si ya tiene cuota
-     * para ese período,
-     * no hacemos otra.
-     */
-    const existing =
-      await this.repo.findOne({
-
-        where: {
-
-          student: {
-            id:
-              student.id,
-          },
-
-          period,
-
-        },
-
-      });
-
-
-    if (existing) {
-
-      skipped.push(
-        student.id,
-      );
-
-      continue;
 
     }
 
 
-    /*
-     * getOne nos devuelve
-     * la entidad real del alumno.
-     */
-    const studentEntity =
-      await this.studentsService
-        .getOne(
-          student.id,
-        );
-
-
-    const amount =
-      Number(
-        student.category!
-          .monthly_fee,
-      );
-
-
-    const fee =
-      this.repo.create({
-
-        student:
-          studentEntity,
-
-        period,
-
-        amount,
-
-        due_date:
-          dueDate,
-
-        status:
-          'due',
-
-        paid_at:
-          null,
-
-        active:
-          true,
-
-      });
-
-
-    const saved =
-      await this.repo.save(
-        fee,
-      );
-
-
-    created.push(
-      saved,
-    );
+    return {
+      monthIndex,
+      year,
+    };
 
   }
 
 
-  return {
+  private validateDueDate(
+    dueDate:
+      string,
+  ):
+    void {
 
-    period,
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/
+        .test(
+          dueDate,
+        )
+    ) {
 
-    dueDate,
+      throw new BadRequestException(
+        'Due date must use YYYY-MM-DD format',
+      );
 
-    totalStudents:
-      students.length,
+    }
 
-    created:
-      created.length,
 
-    skipped:
-      skipped.length,
+    const [
+      year,
+      month,
+      day,
+    ] =
+      dueDate
+        .split('-')
+        .map(
+          Number,
+        );
 
-    fees:
-      created,
 
-  };
+    const parsed =
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day,
+        ),
+      );
 
-}
+
+    if (
+      parsed.getUTCFullYear() !==
+        year ||
+      parsed.getUTCMonth() !==
+        month - 1 ||
+      parsed.getUTCDate() !==
+        day
+    ) {
+
+      throw new BadRequestException(
+        'Invalid due date',
+      );
+
+    }
+
+  }
+
+
+  async generatePeriod(
+
+    period:
+      string,
+
+    dueDate:
+      string,
+
+  ) {
+
+    if (
+      !period ||
+      !dueDate
+    ) {
+
+      throw new BadRequestException(
+        'Period and due date are required',
+      );
+
+    }
+
+
+    this.parsePeriod(
+      period,
+    );
+
+    this.validateDueDate(
+      dueDate,
+    );
+
+
+    try {
+
+      return await this.dataSource
+        .transaction(
+
+          async manager => {
+
+            const feeRepo =
+              manager.getRepository(
+                FeeEntity,
+              );
+
+            const studentRepo =
+              manager.getRepository(
+                StudentEntity,
+              );
+
+
+            /*
+             * La generación usa solamente
+             * alumnos activos y congela el
+             * valor de la categoría en amount.
+             */
+            const students =
+              await studentRepo.find({
+
+                where: {
+                  active:
+                    true,
+                },
+
+                relations: {
+                  category:
+                    true,
+                },
+
+                order: {
+                  last_name:
+                    'ASC',
+                  name:
+                    'ASC',
+                },
+
+              });
+
+
+            /*
+             * Antes de crear una sola cuota,
+             * validamos todo el padrón.
+             * Si hay un problema no queda
+             * un período generado a medias.
+             */
+            const categoriesWithoutPrice =
+              students
+
+                .filter(
+                  student =>
+                    !student.category ||
+                    !student.category.active ||
+                    Number(
+                      student.category
+                        .monthly_fee,
+                    ) <= 0,
+                )
+
+                .map(
+                  student =>
+                    student.category
+                      ?.name ??
+                    'Sin categoría',
+                )
+
+                .filter(
+                  (
+                    category,
+                    index,
+                    array,
+                  ) =>
+                    array.indexOf(
+                      category,
+                    ) ===
+                    index,
+                );
+
+
+            if (
+              categoriesWithoutPrice
+                .length > 0
+            ) {
+
+              throw new BadRequestException({
+
+                message:
+                  'There are categories without an active monthly fee',
+
+                categories:
+                  categoriesWithoutPrice,
+
+              });
+
+            }
+
+
+            const created:
+              FeeEntity[] =
+              [];
+
+            const skipped:
+              string[] =
+              [];
+
+
+            for (
+              const student
+              of students
+            ) {
+
+              /*
+               * Bloqueamos la búsqueda de
+               * alumno+período dentro de la
+               * transacción para reducir
+               * carreras entre dos pedidos
+               * de generación simultáneos.
+               */
+              const existing =
+                await feeRepo.findOne({
+
+                  where: {
+
+                    student: {
+                      id:
+                        student.id,
+                    },
+
+                    period,
+
+                  },
+
+                  lock: {
+                    mode:
+                      'pessimistic_write',
+                  },
+
+                });
+
+
+              if (existing) {
+
+                skipped.push(
+                  student.id,
+                );
+
+                continue;
+
+              }
+
+
+              const amount =
+                Number(
+                  student.category!
+                    .monthly_fee,
+                );
+
+
+              /*
+               * amount queda guardado en la
+               * cuota. Si el arancel cambia
+               * más adelante, esta cuota no
+               * cambia retroactivamente.
+               */
+              const fee =
+                feeRepo.create({
+
+                  student,
+
+                  period,
+
+                  amount,
+
+                  due_date:
+                    dueDate,
+
+                  status:
+                    'due',
+
+                  paid_at:
+                    null,
+
+                  active:
+                    true,
+
+                });
+
+
+              created.push(
+
+                await feeRepo.save(
+                  fee,
+                ),
+
+              );
+
+            }
+
+
+            return {
+
+              period,
+
+              dueDate,
+
+              totalStudents:
+                students.length,
+
+              created:
+                created.length,
+
+              skipped:
+                skipped.length,
+
+              fees:
+                created,
+
+            };
+
+          },
+
+        );
+
+    } catch (
+      error: any
+    ) {
+
+      throw new HttpException(
+
+        error.response ??
+        error.message,
+
+        error.status ??
+        HttpStatus
+          .INTERNAL_SERVER_ERROR,
+
+      );
+
+    }
+
+  }
+
 }

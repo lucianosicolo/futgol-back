@@ -11,6 +11,10 @@ import {
 } from 'src/Fees/fees.module';
 
 import {
+  UserEntity,
+} from 'src/Users/users.entity';
+
+import {
   PaymentEntity,
 } from './payments.entity';
 
@@ -29,6 +33,7 @@ import {
 
     TypeOrmModule.forFeature([
       PaymentEntity,
+      UserEntity,
     ]),
 
     FeesModule,

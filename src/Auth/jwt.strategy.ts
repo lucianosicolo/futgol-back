@@ -1,5 +1,6 @@
 import {
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 import {
@@ -14,7 +15,14 @@ import {
   ExtractJwt,
   Strategy,
 } from 'passport-jwt';
-import { UserRole } from 'src/Users/user-role.enum';
+
+import {
+  UserRole,
+} from 'src/Users/user-role.enum';
+
+import {
+  UsersService,
+} from 'src/Users/users.service';
 
 
 @Injectable()
@@ -25,8 +33,13 @@ export class JwtStrategy
 
 
   constructor(
+
     configService:
       ConfigService,
+
+    private readonly usersService:
+      UsersService,
+
   ) {
 
     super({
@@ -47,31 +60,71 @@ export class JwtStrategy
     });
 
   }
-async validate(
-  payload: {
 
-    sub: string;
 
-    email: string;
+  async validate(
+    payload: {
 
-    role: UserRole;
+      sub: string;
 
-  },
-) {
+      email: string;
 
-  return {
+      role: UserRole;
 
-    id:
-      payload.sub,
+    },
+  ) {
 
-    email:
-      payload.email,
+    try {
 
-    role:
-      payload.role,
+      /*
+       * No confiamos solamente en los datos
+       * que quedaron dentro del token.
+       *
+       * Volvemos a consultar al usuario para
+       * que una baja o cambio de rol tenga
+       * efecto aunque el JWT todavía no haya
+       * vencido.
+       */
+      const user =
+        await this.usersService
+          .getOne(
+            payload.sub,
+          );
 
-  };
 
-}
+      if (
+        !user ||
+        !user.active
+      ) {
+
+        throw new UnauthorizedException(
+          'User is inactive',
+        );
+
+      }
+
+
+      return {
+
+        id:
+          user.id,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+      };
+
+    } catch {
+
+      throw new UnauthorizedException(
+        'Invalid or inactive user',
+      );
+
+    }
+
+  }
 
 }

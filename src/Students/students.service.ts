@@ -428,6 +428,7 @@ export class StudentsService {
 
           relations: {
             category: true,
+            user: true,
           },
 
         });
@@ -494,8 +495,99 @@ export class StudentsService {
             );
 
 
+        if (!category.active) {
+
+          throw new BadRequestException(
+            'Category is inactive',
+          );
+
+        }
+
+
         entity.category =
           category;
+
+      }
+
+
+      if (
+        type.user_id !==
+        undefined
+      ) {
+
+        if (!type.user_id) {
+
+          entity.user =
+            null;
+
+        } else {
+
+          const linkedUser =
+            await this.usersRepo
+              .findOne({
+
+                where: {
+                  id:
+                    type.user_id,
+                  active:
+                    true,
+                },
+
+              });
+
+
+          if (!linkedUser) {
+
+            throw new NotFoundException(
+              'Active user not found',
+            );
+
+          }
+
+
+          if (
+            linkedUser.role !==
+            UserRole.RESPONSIBLE
+          ) {
+
+            throw new BadRequestException(
+              'Student account must use a responsible user',
+            );
+
+          }
+
+
+          const existingLink =
+            await this.repo
+              .findOne({
+
+                where: {
+                  user: {
+                    id:
+                      type.user_id,
+                  },
+                },
+
+              });
+
+
+          if (
+            existingLink &&
+            existingLink.id !==
+              id
+          ) {
+
+            throw new ConflictException(
+              'User is already linked to a student',
+            );
+
+          }
+
+
+          entity.user =
+            linkedUser;
+
+        }
 
       }
 
@@ -509,6 +601,7 @@ export class StudentsService {
       const {
         category,
         responsibles,
+        user_id,
         ...studentData
       } = type;
 

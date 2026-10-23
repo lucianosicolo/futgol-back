@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/typeorm';
 
 import {
+  DataSource,
   FindManyOptions,
   FindOptionsWhere,
   Repository,
@@ -19,6 +21,14 @@ import {
 import {
   FeesService,
 } from 'src/Fees/fees.service';
+
+import {
+  FeeEntity,
+} from 'src/Fees/fees.entity';
+
+import {
+  UserEntity,
+} from 'src/Users/users.entity';
 
 import {
   PaymentEntity,
@@ -41,6 +51,9 @@ export class PaymentsService {
 
     private readonly feesService:
       FeesService,
+
+    private readonly dataSource:
+      DataSource,
 
   ) {}
 
@@ -179,6 +192,210 @@ export class PaymentsService {
   }
 
 
+  //! SAVE MANUAL PAYMENT -------------------------------------------->
+
+  async saveManualPayment(
+
+    feeId:
+      string,
+
+    registeredByUserId:
+      string,
+
+    paymentMethod:
+      'cash' | 'transfer',
+
+  ): Promise<PaymentEntity> {
+
+
+    if (!feeId) {
+
+      throw new BadRequestException(
+        'Fee id is required',
+      );
+
+    }
+
+
+    if (
+      paymentMethod !== 'cash' &&
+      paymentMethod !== 'transfer'
+    ) {
+
+      throw new BadRequestException(
+        'Invalid manual payment method',
+      );
+
+    }
+
+
+    try {
+
+      return await this.dataSource
+        .transaction(
+
+          async manager => {
+
+            const feeRepo =
+              manager.getRepository(
+                FeeEntity,
+              );
+
+            const paymentRepo =
+              manager.getRepository(
+                PaymentEntity,
+              );
+
+
+            /*
+             * Bloqueamos la cuota durante
+             * la transacción para evitar que
+             * dos confirmaciones manuales
+             * generen pagos duplicados.
+             */
+            const fee =
+              await feeRepo.findOne({
+
+                where: {
+                  id:
+                    feeId,
+                },
+
+                relations: {
+                  student:
+                    true,
+                },
+
+                lock: {
+                  mode:
+                    'pessimistic_write',
+                },
+
+              });
+
+
+            if (!fee) {
+
+              throw new NotFoundException(
+                'Fee not found',
+              );
+
+            }
+
+
+            if (!fee.active) {
+
+              throw new BadRequestException(
+                'Fee is not active',
+              );
+
+            }
+
+
+            if (
+              fee.status === 'paid'
+            ) {
+
+              throw new ConflictException(
+                'Fee is already paid',
+              );
+
+            }
+
+
+            const approvedAt =
+              new Date();
+
+
+            const payment =
+              paymentRepo.create({
+
+                fee,
+
+                source:
+                  'manual',
+
+                mercado_pago_payment_id:
+                  null,
+
+                registered_by: {
+                  id:
+                    registeredByUserId,
+                } as UserEntity,
+
+                external_reference:
+                  fee.id,
+
+                amount:
+                  Number(
+                    fee.amount,
+                  ),
+
+                currency:
+                  'ARS',
+
+                status:
+                  'approved',
+
+                status_detail:
+                  'registered_by_admin',
+
+                payment_method:
+                  paymentMethod,
+
+                payment_type:
+                  'manual',
+
+                date_approved:
+                  approvedAt,
+
+                raw_response:
+                  null,
+
+              });
+
+
+            const savedPayment =
+              await paymentRepo.save(
+                payment,
+              );
+
+
+            fee.status =
+              'paid';
+
+            fee.paid_at =
+              approvedAt;
+
+
+            await feeRepo.save(
+              fee,
+            );
+
+
+            return savedPayment;
+
+          },
+
+        );
+
+    } catch (error: any) {
+
+      throw new HttpException(
+
+        error.response ??
+        error.message,
+
+        error.status ??
+        HttpStatus.INTERNAL_SERVER_ERROR,
+
+      );
+
+    }
+
+  }
+
+
   //! SAVE MERCADO PAGO PAYMENT -------------------------------------->
 
   async saveMercadoPagoPayment(
@@ -251,6 +468,12 @@ export class PaymentsService {
       const paymentData = {
 
         fee,
+
+        source:
+          'mercadopago' as const,
+
+        registered_by:
+          null,
 
         mercado_pago_payment_id:
           paymentId,

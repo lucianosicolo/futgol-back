@@ -13,6 +13,7 @@ import {
 
 import { CategoriesService } from 'src/Categories/categories.service';
 import { UserEntity } from 'src/Users/users.entity';
+import { UserRole } from 'src/Users/user-role.enum';
 import {
   FindManyOptions,
   FindOptionsWhere,
@@ -287,6 +288,7 @@ export class StudentsService {
 
             where: {
               id: type.user_id,
+              active: true,
             },
 
           });
@@ -295,7 +297,19 @@ export class StudentsService {
         if (!user) {
 
           throw new NotFoundException(
-            'User not found',
+            'Active user not found',
+          );
+
+        }
+
+
+        if (
+          user.role !==
+          UserRole.RESPONSIBLE
+        ) {
+
+          throw new BadRequestException(
+            'Student account must use a responsible user',
           );
 
         }

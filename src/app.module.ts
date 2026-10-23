@@ -22,6 +22,7 @@ import { PaymentsModule } from './Payments/payments.module';
 import { AuthModule } from './Auth/auth.module';
 import { AsistenciaModule } from './Asistencia/asistencia.module';
 import { RegistrationsModule } from './Registrations/registrations.module';
+import { NoticesModule } from './Notices/notices.module';
 
 
 @Module({
@@ -96,6 +97,7 @@ import { RegistrationsModule } from './Registrations/registrations.module';
     AuthModule,
     AsistenciaModule,
     RegistrationsModule,
+    NoticesModule,
 
   ],
 

@@ -234,6 +234,22 @@ relations:{
       }
 
 
+      if (
+        type.role !==
+          UserRole.RESPONSIBLE &&
+        (
+          type.students?.length ??
+          0
+        ) > 0
+      ) {
+
+        throw new BadRequestException(
+          'Only responsible users can have students assigned',
+        );
+
+      }
+
+
       /*
        * Hasheamos contraseña.
        */

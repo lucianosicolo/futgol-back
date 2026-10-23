@@ -403,7 +403,23 @@ export class NoticesService {
 
       return {
 
-        ...saved,
+        id:
+          saved.id,
+
+        type:
+          saved.type,
+
+        message:
+          saved.message,
+
+        category:
+          saved.category,
+
+        student:
+          saved.student,
+
+        created_at:
+          saved.created_at,
 
         recipientCount:
           recipients.length,
@@ -452,11 +468,6 @@ export class NoticesService {
         .leftJoinAndSelect(
           'notice.created_by',
           'createdBy',
-        )
-
-        .leftJoinAndSelect(
-          'notice.recipients',
-          'recipients',
         )
 
         .where(

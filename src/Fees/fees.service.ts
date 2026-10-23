@@ -748,9 +748,28 @@ async getMyFees(
 
 
       /*
-       * Baja lógica.
+       * Una cuota pagada forma parte del
+       * historial financiero y no puede
+       * darse de baja.
        */
+      if (
+        entity.status ===
+        'paid'
+      ) {
 
+        throw new ConflictException(
+          'Paid fee cannot be deleted',
+        );
+
+      }
+
+
+      /*
+       * Baja lógica.
+       * No se crea otra cuota para el mismo
+       * alumno+período: la restricción única
+       * conserva ese historial.
+       */
       entity.active =
         false;
 
@@ -930,13 +949,42 @@ async getMyFees(
     }
 
 
-    this.parsePeriod(
-      period,
-    );
+    const {
+      monthIndex,
+      year,
+    } =
+      this.parsePeriod(
+        period,
+      );
+
 
     this.validateDueDate(
       dueDate,
     );
+
+
+    const [
+      dueYear,
+      dueMonth,
+    ] =
+      dueDate
+        .split('-')
+        .map(
+          Number,
+        );
+
+
+    if (
+      dueYear !== year ||
+      dueMonth !==
+        monthIndex + 1
+    ) {
+
+      throw new BadRequestException(
+        'Due date must belong to the selected period',
+      );
+
+    }
 
 
     try {

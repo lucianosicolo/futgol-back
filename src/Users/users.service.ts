@@ -709,6 +709,20 @@ async update(
     }
 
 
+    if (
+      finalRole !==
+        UserRole.RESPONSIBLE &&
+      students ===
+        undefined &&
+      entity.students.length > 0
+    ) {
+
+      students =
+        [];
+
+    }
+
+
     /* ============================= */
     /* DATOS NORMALES                */
     /* ============================= */

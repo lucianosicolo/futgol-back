@@ -42,6 +42,9 @@ export class MercadoPagoService {
 
   private readonly preference: Preference;
 
+  private readonly isSandbox:
+    boolean;
+
 
   constructor(
 
@@ -70,6 +73,12 @@ export class MercadoPagoService {
       );
 
     }
+
+
+    this.isSandbox =
+      accessToken.startsWith(
+        'TEST-',
+      );
 
 
     const client =
@@ -333,8 +342,15 @@ if (!notificationUrl) {
           result.id,
 
         checkoutUrl:
-          result.sandbox_init_point ??
-          result.init_point,
+          this.isSandbox
+            ? (
+                result.sandbox_init_point ??
+                result.init_point
+              )
+            : (
+                result.init_point ??
+                result.sandbox_init_point
+              ),
 
         externalReference,
 

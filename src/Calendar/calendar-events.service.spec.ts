@@ -1,0 +1,262 @@
+import {
+  BadRequestException,
+} from '@nestjs/common';
+
+import {
+  CalendarEventsService,
+} from './calendar-events.service';
+
+import {
+  UserRole,
+} from 'src/Users/user-role.enum';
+
+
+describe(
+  'CalendarEventsService',
+  () => {
+
+    const repo = {
+      create:
+        jest.fn(),
+      save:
+        jest.fn(),
+      find:
+        jest.fn(),
+      findOne:
+        jest.fn(),
+    };
+
+    const categoriesRepo = {
+      findOne:
+        jest.fn(),
+    };
+
+    const usersRepo = {
+      findOne:
+        jest.fn(),
+    };
+
+    let service:
+      CalendarEventsService;
+
+
+    beforeEach(
+      () => {
+
+        jest.clearAllMocks();
+
+
+        repo.create
+          .mockImplementation(
+            value =>
+              value,
+          );
+
+        repo.save
+          .mockImplementation(
+            async value => ({
+              id:
+                'event-1',
+              created_at:
+                new Date(),
+              updated_at:
+                new Date(),
+              ...value,
+            }),
+          );
+
+
+        service =
+          new CalendarEventsService(
+            repo as any,
+            categoriesRepo as any,
+            usersRepo as any,
+          );
+
+      },
+    );
+
+
+    it(
+      'creates an event with an active category and safe creator data',
+      async () => {
+
+        usersRepo.findOne
+          .mockResolvedValue({
+            id:
+              'teacher-1',
+            name:
+              'Profe',
+            last_name:
+              'Uno',
+            email:
+              'private@test.com',
+            phone:
+              '123',
+            role:
+              UserRole.TEACHER,
+            active:
+              true,
+          });
+
+        categoriesRepo.findOne
+          .mockResolvedValue({
+            id:
+              'category-1',
+            name:
+              '2013/2014',
+            active:
+              true,
+          });
+
+
+        const result =
+          await service.create(
+            {
+              title:
+                'Entrenamiento',
+              type:
+                'training',
+              date:
+                '2026-10-23',
+              time:
+                '18:00',
+              duration_minutes:
+                90,
+              categoryId:
+                'category-1',
+            },
+            'teacher-1',
+          );
+
+
+        expect(
+          result.created_by,
+        ).toEqual({
+          id:
+            'teacher-1',
+          name:
+            'Profe',
+          last_name:
+            'Uno',
+        });
+
+
+        expect(
+          (result.created_by as any)
+            .email,
+        ).toBeUndefined();
+
+      },
+    );
+
+
+    it(
+      'rejects an invalid calendar date before saving',
+      async () => {
+
+        await expect(
+
+          service.create(
+            {
+              title:
+                'Partido',
+              type:
+                'match',
+              date:
+                '2026-02-31',
+              time:
+                '10:00',
+              duration_minutes:
+                120,
+            },
+            'admin-1',
+          ),
+
+        ).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+
+        expect(
+          repo.save,
+        ).not.toHaveBeenCalled();
+
+      },
+    );
+
+
+    it(
+      'rejects invalid time',
+      async () => {
+
+        await expect(
+
+          service.create(
+            {
+              title:
+                'Actividad',
+              type:
+                'general',
+              date:
+                '2026-10-23',
+              time:
+                '25:90',
+              duration_minutes:
+                60,
+            },
+            'admin-1',
+          ),
+
+        ).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+      },
+    );
+
+
+    it(
+      'soft deletes an active event',
+      async () => {
+
+        repo.findOne
+          .mockResolvedValue({
+            id:
+              'event-1',
+            active:
+              true,
+          });
+
+
+        const result =
+          await service.delete(
+            'event-1',
+          );
+
+
+        expect(
+          repo.save,
+        ).toHaveBeenCalledWith(
+
+          expect.objectContaining({
+            id:
+              'event-1',
+            active:
+              false,
+          }),
+
+        );
+
+
+        expect(
+          result.active,
+        ).toBe(
+          false,
+        );
+
+      },
+    );
+
+  },
+);

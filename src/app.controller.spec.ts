@@ -19,4 +19,15 @@ describe('AppController', () => {
       expect(appController.getHello()).toBe('Hello World!');
     });
   });
+
+  describe('health', () => {
+    it('should report the service as healthy', () => {
+      expect(appController.getHealth()).toEqual(
+        expect.objectContaining({
+          status: 'ok',
+          service: 'futgol-back',
+        }),
+      );
+    });
+  });
 });

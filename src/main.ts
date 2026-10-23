@@ -15,11 +15,27 @@ async function bootstrap() {
     );
 
 
+  const frontendOrigins =
+    (
+      process.env.FRONTEND_URL ??
+      ''
+    )
+      .split(',')
+      .map(
+        origin =>
+          origin.trim(),
+      )
+      .filter(
+        origin =>
+          origin.length > 0,
+      );
+
+
   app.enableCors({
 
     origin: [
       'http://localhost:8100',
-      process.env.FRONTEND_URL!,
+      ...frontendOrigins,
     ],
 
     credentials:

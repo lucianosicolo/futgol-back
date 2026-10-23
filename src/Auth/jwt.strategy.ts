@@ -14,7 +14,18 @@ import {
   ExtractJwt,
   Strategy,
 } from 'passport-jwt';
-import { UserRole } from 'src/Users/user-role.enum';
+
+import {
+  UserRole,
+} from 'src/Users/user-role.enum';
+
+import {
+  UsersService,
+} from 'src/Users/users.service';
+
+import {
+  resolveAuthenticatedUser,
+} from './auth-user.validator';
 
 
 @Injectable()
@@ -25,8 +36,13 @@ export class JwtStrategy
 
 
   constructor(
+
     configService:
       ConfigService,
+
+    private readonly usersService:
+      UsersService,
+
   ) {
 
     super({
@@ -47,31 +63,31 @@ export class JwtStrategy
     });
 
   }
-async validate(
-  payload: {
 
-    sub: string;
 
-    email: string;
+  async validate(
+    payload: {
 
-    role: UserRole;
+      sub:
+        string;
 
-  },
-) {
+      email:
+        string;
 
-  return {
+      role:
+        UserRole;
 
-    id:
+    },
+  ) {
+
+    return resolveAuthenticatedUser(
+
+      this.usersService,
+
       payload.sub,
 
-    email:
-      payload.email,
+    );
 
-    role:
-      payload.role,
-
-  };
-
-}
+  }
 
 }

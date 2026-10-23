@@ -1,4 +1,9 @@
 import {
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+
+import {
   AsistenciaService,
 } from './asistencia.service';
 
@@ -7,7 +12,26 @@ describe(
   'AsistenciaService',
   () => {
 
-    const repo = {
+    const readRepo = {
+
+      find:
+        jest.fn(),
+
+      findOne:
+        jest.fn(),
+
+    };
+
+
+    const readStudentsRepo = {
+
+      findOne:
+        jest.fn(),
+
+    };
+
+
+    const attendanceRepo = {
 
       findOne:
         jest.fn(),
@@ -21,9 +45,25 @@ describe(
     };
 
 
-    const studentsRepo = {
+    const studentRepo = {
 
       findOne:
+        jest.fn(),
+
+    };
+
+
+    const manager = {
+
+      getRepository:
+        jest.fn(),
+
+    };
+
+
+    const dataSource = {
+
+      transaction:
         jest.fn(),
 
     };
@@ -39,12 +79,50 @@ describe(
         jest.clearAllMocks();
 
 
+        manager
+          .getRepository
+          .mockReturnValueOnce(
+            attendanceRepo,
+          )
+          .mockReturnValueOnce(
+            studentRepo,
+          );
+
+
+        dataSource
+          .transaction
+          .mockImplementation(
+            async callback =>
+              callback(
+                manager,
+              ),
+          );
+
+
+        attendanceRepo
+          .save
+          .mockImplementation(
+            async value =>
+              value,
+          );
+
+
+        attendanceRepo
+          .create
+          .mockImplementation(
+            value =>
+              value,
+          );
+
+
         service =
           new AsistenciaService(
 
-            repo as any,
+            readRepo as any,
 
-            studentsRepo as any,
+            readStudentsRepo as any,
+
+            dataSource as any,
 
           );
 
@@ -60,6 +138,9 @@ describe(
 
           id:
             'student-1',
+
+          active:
+            true,
 
         };
 
@@ -80,25 +161,17 @@ describe(
         };
 
 
-        studentsRepo
+        studentRepo
           .findOne
           .mockResolvedValue(
             student,
           );
 
 
-        repo
+        attendanceRepo
           .findOne
           .mockResolvedValue(
             existing,
-          );
-
-
-        repo
-          .save
-          .mockImplementation(
-            async value =>
-              value,
           );
 
 
@@ -122,12 +195,12 @@ describe(
 
 
         expect(
-          repo.create,
+          attendanceRepo.create,
         ).not.toHaveBeenCalled();
 
 
         expect(
-          repo.save,
+          attendanceRepo.save,
         ).toHaveBeenCalledWith(
 
           expect.objectContaining({
@@ -147,6 +220,160 @@ describe(
           result[0].present,
         ).toBe(
           true,
+        );
+
+      },
+    );
+
+
+    it(
+      'rejects inactive students before creating attendance',
+      async () => {
+
+        studentRepo
+          .findOne
+          .mockResolvedValue(
+            null,
+          );
+
+
+        await expect(
+
+          service.save([
+
+            {
+
+              student_id:
+                'inactive-1',
+
+              date:
+                '2026-10-22',
+
+              present:
+                false,
+
+            },
+
+          ]),
+
+        ).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+
+
+        expect(
+          attendanceRepo.save,
+        ).not.toHaveBeenCalled();
+
+      },
+    );
+
+
+    it(
+      'rejects duplicate students inside the same attendance batch',
+      async () => {
+
+        await expect(
+
+          service.save([
+
+            {
+
+              student_id:
+                'student-1',
+
+              date:
+                '2026-10-22',
+
+              present:
+                true,
+
+            },
+
+            {
+
+              student_id:
+                'student-1',
+
+              date:
+                '2026-10-22',
+
+              present:
+                false,
+
+            },
+
+          ]),
+
+        ).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+
+        expect(
+          dataSource.transaction,
+        ).not.toHaveBeenCalled();
+
+      },
+    );
+
+
+    it(
+      'rejects mixed dates in the same attendance batch',
+      async () => {
+
+        await expect(
+
+          service.save([
+
+            {
+
+              student_id:
+                'student-1',
+
+              date:
+                '2026-10-22',
+
+              present:
+                true,
+
+            },
+
+            {
+
+              student_id:
+                'student-2',
+
+              date:
+                '2026-10-23',
+
+              present:
+                false,
+
+            },
+
+          ]),
+
+        ).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+
+      },
+    );
+
+
+    it(
+      'rejects invalid calendar dates',
+      async () => {
+
+        await expect(
+
+          service.getByDate(
+            '2026-02-31',
+          ),
+
+        ).rejects.toBeInstanceOf(
+          BadRequestException,
         );
 
       },

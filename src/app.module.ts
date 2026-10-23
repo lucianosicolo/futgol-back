@@ -23,6 +23,7 @@ import { AuthModule } from './Auth/auth.module';
 import { AsistenciaModule } from './Asistencia/asistencia.module';
 import { RegistrationsModule } from './Registrations/registrations.module';
 import { NoticesModule } from './Notices/notices.module';
+import { CalendarEventsModule } from './Calendar/calendar-events.module';
 
 
 @Module({
@@ -98,6 +99,7 @@ import { NoticesModule } from './Notices/notices.module';
     AsistenciaModule,
     RegistrationsModule,
     NoticesModule,
+    CalendarEventsModule,
 
   ],
 

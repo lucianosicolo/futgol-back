@@ -200,35 +200,20 @@ export class MercadoPagoController {
 
 
       /*
-       * Respondemos sin esperar
-       * todo el procesamiento.
+       * El payment es nuestra fuente
+       * de verdad.
+       *
+       * Esperamos a que termine el
+       * procesamiento antes de responder
+       * 200. Si falla Mercado Pago o la DB,
+       * dejamos que el error suba para que
+       * el webhook pueda ser reintentado.
        */
-
-      void this.mercadoPagoService
-
+      await this.mercadoPagoService
         .processPayment(
           String(
             resourceId,
           ),
-        )
-
-        .then(
-          payment => {
-
-
-
-          },
-        )
-
-        .catch(
-          error => {
-
-            console.error(
-              'ERROR PROCESANDO PAGO:',
-              error,
-            );
-
-          },
         );
 
 

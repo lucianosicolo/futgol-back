@@ -62,6 +62,66 @@ export class CalendarEventsService {
   ) {}
 
 
+  private serialize(
+    event:
+      CalendarEventEntity,
+  ) {
+
+    return {
+
+      id:
+        event.id,
+
+      title:
+        event.title,
+
+      type:
+        event.type,
+
+      date:
+        event.date,
+
+      time:
+        event.time,
+
+      duration_minutes:
+        event.duration_minutes,
+
+      category:
+        event.category,
+
+      location:
+        event.location,
+
+      opponent:
+        event.opponent,
+
+      created_by:
+        event.created_by
+          ? {
+              id:
+                event.created_by.id,
+
+              name:
+                event.created_by.name,
+
+              last_name:
+                event.created_by
+                  .last_name,
+            }
+          : null,
+
+      created_at:
+        event.created_at,
+
+      updated_at:
+        event.updated_at,
+
+    };
+
+  }
+
+
   private validateDate(
     date:
       string,
@@ -345,8 +405,14 @@ export class CalendarEventsService {
         });
 
 
-      return await this.repo.save(
-        event,
+      const saved =
+        await this.repo.save(
+          event,
+        );
+
+
+      return this.serialize(
+        saved,
       );
 
     } catch (
@@ -385,35 +451,44 @@ export class CalendarEventsService {
 
     try {
 
-      return await this.repo.find({
+      const events =
+        await this.repo.find({
 
-        where:
-          date
-            ? {
-                date,
-                active:
-                  true,
-              }
-            : {
-                active:
-                  true,
-              },
+          where:
+            date
+              ? {
+                  date,
+                  active:
+                    true,
+                }
+              : {
+                  active:
+                    true,
+                },
 
-        relations: {
-          category:
-            true,
-          created_by:
-            true,
-        },
+          relations: {
+            category:
+              true,
+            created_by:
+              true,
+          },
 
-        order: {
-          date:
-            'ASC',
-          time:
-            'ASC',
-        },
+          order: {
+            date:
+              'ASC',
+            time:
+              'ASC',
+          },
 
-      });
+        });
+
+
+      return events.map(
+        event =>
+          this.serialize(
+            event,
+          ),
+      );
 
     } catch (
       error: any

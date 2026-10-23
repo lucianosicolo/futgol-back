@@ -510,6 +510,48 @@ export class CalendarEventsService {
   }
 
 
+
+  async update(id: string, input: CalendarEventCreateDto) {
+    if (!id) throw new BadRequestException('Event id is required');
+    const title = input.title?.trim();
+    if (!title || title.length > 120) throw new BadRequestException('Invalid title');
+    this.validateType(input.type);
+    this.validateDate(input.date);
+    this.validateTime(input.time);
+    const duration = Number(input.duration_minutes);
+    if (!Number.isInteger(duration) || duration <= 0 || duration > 600) {
+      throw new BadRequestException('Invalid duration');
+    }
+    if (input.location && input.location.trim().length > 160) {
+      throw new BadRequestException('Location is too long');
+    }
+    if (input.opponent && input.opponent.trim().length > 120) {
+      throw new BadRequestException('Opponent is too long');
+    }
+    const event = await this.repo.findOne({
+      where: { id, active: true },
+      relations: { category: true, created_by: true },
+    });
+    if (!event) throw new NotFoundException('Calendar event not found');
+    let category: CategoryEntity | null = null;
+    if (input.categoryId) {
+      category = await this.categoriesRepo.findOne({
+        where: { id: input.categoryId, active: true },
+      });
+      if (!category) throw new NotFoundException('Active category not found');
+    }
+    event.title = title;
+    event.type = input.type;
+    event.date = input.date;
+    event.time = input.time;
+    event.duration_minutes = duration;
+    event.category = category;
+    event.location = input.location?.trim() || null;
+    event.opponent = input.type === 'match' ? input.opponent?.trim() || null : null;
+    const saved = await this.repo.save(event);
+    return this.serialize(saved);
+  }
+
   async delete(
     id:
       string,

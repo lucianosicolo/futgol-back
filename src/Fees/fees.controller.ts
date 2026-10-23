@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -231,6 +232,17 @@ async getMyFees(
     res: Response,
 
   ) {
+
+    if (
+      type.status !== undefined
+    ) {
+
+      throw new BadRequestException(
+        'Fee status must be changed through a payment flow',
+      );
+
+    }
+
 
     const result =
       await this.service.update(

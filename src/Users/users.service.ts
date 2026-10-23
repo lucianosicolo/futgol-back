@@ -828,6 +828,38 @@ async update(
       }
 
 
+      if (
+        entity.role ===
+          UserRole.ADMIN &&
+        entity.active
+      ) {
+
+        const activeAdmins =
+          await this.repo.count({
+
+            where: {
+              role:
+                UserRole.ADMIN,
+              active:
+                true,
+            },
+
+          });
+
+
+        if (
+          activeAdmins <= 1
+        ) {
+
+          throw new ConflictException(
+            'At least one active admin is required',
+          );
+
+        }
+
+      }
+
+
       /*
        * No eliminamos físicamente
        * al usuario.

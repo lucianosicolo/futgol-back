@@ -289,6 +289,50 @@ describe(
       expect(repo.save).not.toHaveBeenCalled();
     });
 
+
+    it('filters the calendar by date and only active events', async () => {
+      repo.find.mockResolvedValue([{
+        id: 'event-1',
+        title: 'Training',
+        type: 'training',
+        date: '2026-10-24',
+        time: '18:00',
+        duration_minutes: 90,
+        category: null,
+        location: null,
+        opponent: null,
+        created_by: { id: 'teacher-1', name: 'Profe', last_name: 'Uno' },
+      }]);
+      const events = await service.getAll('2026-10-24');
+      expect(events).toHaveLength(1);
+      expect(events[0].title).toBe('Training');
+      expect(repo.find).toHaveBeenCalledWith({
+        where: { date: '2026-10-24', active: true },
+        relations: { category: true, created_by: true },
+        order: { date: 'ASC', time: 'ASC' },
+      });
+    });
+
+    it('rejects an invalid calendar query before accessing the database', async () => {
+      await expect(service.getAll('2026-02-31')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repo.find).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid category during event creation', async () => {
+      usersRepo.findOne.mockResolvedValue({
+        id: 'admin-1', name: 'Admin', last_name: 'One',
+        role: UserRole.ADMIN, active: true,
+      });
+      categoriesRepo.findOne.mockResolvedValue(null);
+      await expect(service.create({
+        title: 'Training', type: 'training', date: '2026-10-24',
+        time: '18:00', duration_minutes: 90, categoryId: 'invalid',
+      }, 'admin-1')).rejects.toThrow('Active category not found');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
     it(
       'soft deletes an active event',
       async () => {

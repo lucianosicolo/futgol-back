@@ -1,18 +1,100 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { MercadopagoController } from './mercadopago.controller';
+import {
+  ConfigService,
+} from '@nestjs/config';
 
-describe('MercadopagoController', () => {
-  let controller: MercadopagoController;
+import {
+  Test,
+  TestingModule,
+} from '@nestjs/testing';
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [MercadopagoController],
-    }).compile();
+import {
+  MercadoPagoController,
+} from './mercadopago.controller';
 
-    controller = module.get<MercadopagoController>(MercadopagoController);
-  });
+import {
+  MercadoPagoService,
+} from './mercadopago.service';
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
-});
+
+describe(
+  'MercadoPagoController',
+  () => {
+
+    let controller:
+      MercadoPagoController;
+
+
+    beforeEach(
+      async () => {
+
+        const module:
+          TestingModule =
+          await Test
+            .createTestingModule({
+
+              controllers: [
+                MercadoPagoController,
+              ],
+
+              providers: [
+
+                {
+                  provide:
+                    MercadoPagoService,
+
+                  useValue: {
+
+                    createPreference:
+                      jest.fn(),
+
+                    processPayment:
+                      jest.fn(),
+
+                    processMerchantOrder:
+                      jest.fn(),
+
+                  },
+                },
+
+                {
+                  provide:
+                    ConfigService,
+
+                  useValue: {
+
+                    get:
+                      jest.fn(),
+
+                  },
+                },
+
+              ],
+
+            })
+            .compile();
+
+
+        controller =
+          module.get<
+            MercadoPagoController
+          >(
+            MercadoPagoController,
+          );
+
+      },
+    );
+
+
+    it(
+      'should be defined',
+      () => {
+
+        expect(
+          controller,
+        ).toBeDefined();
+
+      },
+    );
+
+  },
+);

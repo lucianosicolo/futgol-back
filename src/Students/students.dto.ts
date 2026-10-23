@@ -32,7 +32,7 @@ export class StudentDto {
    * Si este alumno tiene una
    * cuenta propia en FUTGOL.
    */
-  user_id?: string;
+  user_id?: string | null;
 
   responsibles: UserDto[];
 

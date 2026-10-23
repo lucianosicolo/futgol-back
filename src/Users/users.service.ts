@@ -234,6 +234,22 @@ relations:{
       }
 
 
+      if (
+        type.role !==
+          UserRole.RESPONSIBLE &&
+        (
+          type.students?.length ??
+          0
+        ) > 0
+      ) {
+
+        throw new BadRequestException(
+          'Only responsible users can have students assigned',
+        );
+
+      }
+
+
       /*
        * Hasheamos contraseña.
        */
@@ -510,6 +526,53 @@ async update(
     }
 
 
+    const finalRole =
+      type.role ??
+      entity.role;
+
+
+    if (
+      entity.role ===
+        UserRole.ADMIN &&
+      entity.active &&
+      (
+        (
+          type.role !==
+            undefined &&
+          type.role !==
+            UserRole.ADMIN
+        ) ||
+        type.active ===
+          false
+      )
+    ) {
+
+      const activeAdmins =
+        await this.repo.count({
+
+          where: {
+            role:
+              UserRole.ADMIN,
+            active:
+              true,
+          },
+
+        });
+
+
+      if (
+        activeAdmins <= 1
+      ) {
+
+        throw new ConflictException(
+          'At least one active admin is required',
+        );
+
+      }
+
+    }
+
+
     /* ============================= */
     /* PASSWORD                      */
     /* ============================= */
@@ -556,11 +619,6 @@ async update(
        * debería tener alumnos
        * asociados a cargo.
        */
-
-      const finalRole =
-        type.role ??
-        entity.role;
-
 
       if (
         finalRole !==
@@ -647,6 +705,20 @@ async update(
         }
 
       }
+
+    }
+
+
+    if (
+      finalRole !==
+        UserRole.RESPONSIBLE &&
+      students ===
+        undefined &&
+      entity.students.length > 0
+    ) {
+
+      students =
+        [];
 
     }
 
@@ -752,6 +824,38 @@ async update(
         throw new NotFoundException(
           'User not found',
         );
+
+      }
+
+
+      if (
+        entity.role ===
+          UserRole.ADMIN &&
+        entity.active
+      ) {
+
+        const activeAdmins =
+          await this.repo.count({
+
+            where: {
+              role:
+                UserRole.ADMIN,
+              active:
+                true,
+            },
+
+          });
+
+
+        if (
+          activeAdmins <= 1
+        ) {
+
+          throw new ConflictException(
+            'At least one active admin is required',
+          );
+
+        }
 
       }
 

@@ -9,7 +9,11 @@ export class PaymentDto {
 
   fee: FeeDto;
 
-  mercado_pago_payment_id: string;
+  source:
+    'mercadopago' | 'manual';
+
+  mercado_pago_payment_id:
+    string | null;
 
   external_reference: string | null;
 

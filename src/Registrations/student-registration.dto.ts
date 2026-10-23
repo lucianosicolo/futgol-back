@@ -78,4 +78,7 @@ export class StudentRegistrationDto {
   responsible_account?:
     StudentRegistrationResponsibleInput;
 
+  dependent_student_ids?:
+    string[];
+
 }

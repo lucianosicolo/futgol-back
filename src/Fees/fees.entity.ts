@@ -3,6 +3,7 @@ import { StudentEntity } from 'src/Students/students.entity';
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -10,6 +11,16 @@ import {
 
 
 @Entity('fees')
+@Index(
+  [
+    'student',
+    'period',
+  ],
+  {
+    unique:
+      true,
+  },
+)
 export class FeeEntity {
 
   @PrimaryGeneratedColumn('uuid')
